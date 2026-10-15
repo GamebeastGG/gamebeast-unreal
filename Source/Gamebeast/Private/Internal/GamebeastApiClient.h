@@ -95,7 +95,7 @@ public:
 		const FString& Alias,
 		const FString& KnownHash,
 		const FString& DistinctId,
-		const TSharedPtr<FJsonObject>& ContextProperties,
+		const TSharedPtr<FJsonObject>& EvaluationContext,
 		FFetchCallback Callback);
 
 	/** `GET /sdk/v2/experiments/active?unit-type=user`: names and group labels for display. */

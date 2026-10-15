@@ -170,7 +170,7 @@ void UGamebeastConfigs::RefreshConfig(const FString& Alias)
 	const TWeakPtr<FGamebeastContext> WeakContext = Context;
 	TWeakObjectPtr<UGamebeastConfigs> WeakThis(this);
 	Context->Api->EvaluateConfiguration(
-		Alias, State->Hash, Context->DistinctId, Context->BuildEvaluationProperties(),
+		Alias, State->Hash, Context->DistinctId, Context->BuildEvaluationContext(),
 		[WeakThis, WeakContext, Alias, Generation](const FGamebeastFetchResult& Result)
 		{
 			UGamebeastConfigs* This = WeakThis.Get();

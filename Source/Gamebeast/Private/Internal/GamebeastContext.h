@@ -29,8 +29,14 @@ struct FGamebeastContext
 	/** Bumped on Identify/ResetIdentity so responses for the previous user are discarded. */
 	int32 IdentityGeneration = 0;
 
-	/** Targeting properties: device/app facts overlaid with Options.UserProperties. */
-	TSharedRef<FJsonObject> BuildEvaluationProperties() const;
+	/**
+	 * The evaluation context: `schemaVersion`, the built-in `unreal` targeting fields, and
+	 * Options.UserProperties under `properties` (valid entries only).
+	 */
+	TSharedRef<FJsonObject> BuildEvaluationContext() const;
+
+	/** Options.UserProperties, minus entries targeting can't accept (each one logged). */
+	TSharedRef<FJsonObject> BuildCustomProperties() const;
 
 	/** The project version (Project Settings > Description), stamped on caches. */
 	static FString AppVersion();

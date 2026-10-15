@@ -9,6 +9,7 @@
 #include "Internal/GamebeastEnvironment.h"
 #include "Internal/GamebeastJson.h"
 #include "Internal/GamebeastMarkerQueue.h"
+#include "Internal/GamebeastPlatformFacts.h"
 
 // EAutomationTestFlags is a namespace before UE 5.5 and an enum class after; a macro fits both.
 #define GAMEBEAST_TEST_FLAGS (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
@@ -238,6 +239,56 @@ bool FGamebeastMarkerQueueTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("capped"), Unsent.Num(), 3);
 		TestEqual(TEXT("oldest dropped"), static_cast<int32>(Unsent[0]->AsObject()->GetNumberField(TEXT("index"))), 3);
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGamebeastPlatformFactsTest, "Gamebeast.PlatformFacts", GAMEBEAST_TEST_FLAGS)
+
+bool FGamebeastPlatformFactsTest::RunTest(const FString& Parameters)
+{
+	using namespace Gamebeast::PlatformFacts;
+
+	// The vocabulary registered for `unreal.platform` / `unreal.device` in @gamebeast/experiments.
+	TestEqual(TEXT("Windows"), NormalizePlatform(TEXT("Windows")), TEXT("windows"));
+	TestEqual(TEXT("WinGDK"), NormalizePlatform(TEXT("WinGDK")), TEXT("windows"));
+	TestEqual(TEXT("Mac"), NormalizePlatform(TEXT("Mac")), TEXT("mac"));
+	TestEqual(TEXT("LinuxArm64"), NormalizePlatform(TEXT("LinuxArm64")), TEXT("linux"));
+	TestEqual(TEXT("IOS"), NormalizePlatform(TEXT("IOS")), TEXT("ios"));
+	TestEqual(TEXT("TVOS"), NormalizePlatform(TEXT("TVOS")), TEXT("ios"));
+	TestEqual(TEXT("Android"), NormalizePlatform(TEXT("Android")), TEXT("android"));
+	TestEqual(TEXT("PS5"), NormalizePlatform(TEXT("PS5")), TEXT("playstation"));
+	TestEqual(TEXT("XSX"), NormalizePlatform(TEXT("XSX")), TEXT("xbox"));
+	TestEqual(TEXT("XboxOneGDK"), NormalizePlatform(TEXT("XboxOneGDK")), TEXT("xbox"));
+	TestEqual(TEXT("Switch"), NormalizePlatform(TEXT("Switch")), TEXT("switch"));
+	TestEqual(TEXT("Unknown name"), NormalizePlatform(TEXT("HoloLens")), TEXT("unknown"));
+	TestEqual(TEXT("Empty name"), NormalizePlatform(TEXT("")), TEXT("unknown"));
+
+	TestEqual(TEXT("PC device"), DeviceForPlatform(TEXT("linux")), TEXT("pc"));
+	TestEqual(TEXT("Mobile device"), DeviceForPlatform(TEXT("android")), TEXT("mobile"));
+	TestEqual(TEXT("Console device"), DeviceForPlatform(TEXT("xbox")), TEXT("console"));
+	TestEqual(TEXT("Unknown device"), DeviceForPlatform(TEXT("unknown")), TEXT("unknown"));
+
+	// ISO 639-1 lowercase and ISO 3166-1 alpha-2 uppercase, as the dashboard's vocabularies.
+	TestEqual(TEXT("Language en-US"), LanguageFromLocale(TEXT("en-US")), TEXT("en"));
+	TestEqual(TEXT("Language POSIX"), LanguageFromLocale(TEXT("pt_BR.UTF-8")), TEXT("pt"));
+	TestEqual(TEXT("Language bare"), LanguageFromLocale(TEXT("FR")), TEXT("fr"));
+	TestEqual(TEXT("Language three letters"), LanguageFromLocale(TEXT("fil-PH")), TEXT("unknown"));
+	TestEqual(TEXT("Language empty"), LanguageFromLocale(TEXT("")), TEXT("unknown"));
+
+	TestEqual(TEXT("Country en-US"), CountryFromLocale(TEXT("en-US")), TEXT("US"));
+	TestEqual(TEXT("Country after script"), CountryFromLocale(TEXT("zh-Hans-CN")), TEXT("CN"));
+	TestEqual(TEXT("Country POSIX"), CountryFromLocale(TEXT("de_de.UTF-8@euro")), TEXT("DE"));
+	TestEqual(TEXT("Country missing"), CountryFromLocale(TEXT("en")), TEXT("unknown"));
+	TestEqual(TEXT("Country numeric region"), CountryFromLocale(TEXT("es-419")), TEXT("unknown"));
+
+	// Only registered keys: the backend rejects anything else in the namespace.
+	const TSharedRef<FJsonObject> Facts = Collect();
+	TArray<FString> Keys;
+	Facts->Values.GetKeys(Keys);
+	Keys.Sort();
+	TestEqual(TEXT("Namespace keys"), FString::Join(Keys, TEXT(",")),
+		FString(TEXT("appVersion,country,device,engineVersion,language,platform")));
 
 	return true;
 }

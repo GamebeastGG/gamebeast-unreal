@@ -101,7 +101,7 @@ Enrollment is automatic when a configuration is evaluated. This service is read-
 - `GetAssignments()`: the user's assignments across every loaded configuration.
 - `OnAssignmentsChanged` (Blueprint) / `OnAssignmentsChangedNative` (C++).
 
-Targeting can filter on user properties. The SDK always sends `platform`, `operatingSystem`, `deviceModel`, `systemLanguage`, `appVersion` and `engineVersion`; add your own with `FGamebeastSetupOptions::UserProperties` (strings, numbers, booleans, or arrays of one of those).
+Experiments can target the built-in **Unreal fields** the SDK sends with every evaluation: platform, device, country and language (from the device's settings), game version and engine version. Each is normalized to the vocabulary the dashboard offers, or `unknown`. Target anything else with `FGamebeastSetupOptions::UserProperties` (strings, numbers, booleans, or arrays of one of those).
 
 ### Cohorts: `UGamebeastCohorts`
 

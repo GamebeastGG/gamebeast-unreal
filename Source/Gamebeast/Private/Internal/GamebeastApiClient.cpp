@@ -172,7 +172,7 @@ void FGamebeastApiClient::EvaluateConfiguration(
 	const FString& Alias,
 	const FString& KnownHash,
 	const FString& DistinctId,
-	const TSharedPtr<FJsonObject>& ContextProperties,
+	const TSharedPtr<FJsonObject>& EvaluationContext,
 	FFetchCallback Callback)
 {
 	const TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
@@ -183,12 +183,9 @@ void FGamebeastApiClient::EvaluateConfiguration(
 	Unit->SetStringField(TEXT("distinctId"), DistinctId);
 	Body->SetObjectField(TEXT("unit"), Unit);
 
-	if (ContextProperties.IsValid() && ContextProperties->Values.Num() > 0)
+	if (EvaluationContext.IsValid())
 	{
-		const TSharedRef<FJsonObject> Context = MakeShared<FJsonObject>();
-		Context->SetNumberField(TEXT("schemaVersion"), 1);
-		Context->SetObjectField(TEXT("properties"), ContextProperties);
-		Body->SetObjectField(TEXT("context"), Context);
+		Body->SetObjectField(TEXT("context"), EvaluationContext);
 	}
 	if (!KnownHash.IsEmpty())
 	{
