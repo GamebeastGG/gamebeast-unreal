@@ -5,13 +5,15 @@
 #include "GamebeastExperiments.h"
 #include "Gamebeast.h"
 #include "Internal/GamebeastContext.h"
+#include "Internal/GamebeastEnvironment.h"
 #include "Internal/GamebeastJson.h"
 #include "Internal/GamebeastLog.h"
+#include "Internal/GamebeastStatusPoller.h"
 #include "Internal/GamebeastStorage.h"
 
 namespace
 {
-	/** Configurations that have never loaded retry this often, even when refresh is off. */
+	/** Configurations that have never loaded retry this often, independent of the other rates. */
 	constexpr float UnloadedRetrySeconds = 10.f;
 	constexpr int32 CacheFormatVersion = 1;
 }
@@ -32,21 +34,49 @@ void UGamebeastConfigs::Start(const TSharedRef<FGamebeastContext>& InContext, UG
 		}
 	}
 	CheckReady();
-	Refresh();
+
+	// Evaluate right away (cached values may be stale), then let /status say when to do it again.
+	RefreshAll();
+	if (InContext->Api.IsValid())
+	{
+		TWeakObjectPtr<UGamebeastConfigs> WeakThis(this);
+		StatusPoller = MakeShared<FGamebeastStatusPoller>(InContext->Api.ToSharedRef(), InContext->Rates.StatusPollRate,
+			[WeakThis](const TSharedRef<FJsonObject>& Status)
+			{
+				if (UGamebeastConfigs* This = WeakThis.Get())
+				{
+					This->HandleStatus(Status);
+				}
+			});
+	}
 }
 
 void UGamebeastConfigs::Stop()
 {
+	StatusPoller.Reset();
 	Context.Reset();
 	Configs.Reset();
 	Listeners.Reset();
 	ReadyCallbacks.Reset();
+	SnapshotFingerprints.Reset();
+	SnapshotWithUserExperiments.Reset();
+	bHaveSnapshot = false;
 	bReady = false;
+	SecondsSinceAssignmentRefresh = 0.f;
+	SecondsSinceUnloadedRetry = 0.f;
 }
 
 void UGamebeastConfigs::Tick(float DeltaSeconds)
 {
-	if (!Context.IsValid() || Configs.Num() == 0)
+	if (!Context.IsValid())
+	{
+		return;
+	}
+	if (StatusPoller.IsValid())
+	{
+		StatusPoller->Tick(DeltaSeconds);
+	}
+	if (Configs.Num() == 0)
 	{
 		return;
 	}
@@ -69,25 +99,17 @@ void UGamebeastConfigs::Tick(float DeltaSeconds)
 		}
 	}
 
-	const float Interval = Context->Options.ConfigRefreshIntervalSeconds;
-	if (Interval <= 0.f)
+	SecondsSinceAssignmentRefresh += DeltaSeconds;
+	if (SecondsSinceAssignmentRefresh >= Context->Rates.AssignmentRefreshRate)
 	{
-		return;
-	}
-	SecondsSinceRefresh += DeltaSeconds;
-	if (SecondsSinceRefresh >= Interval)
-	{
-		Refresh();
+		RefreshAssignments();
 	}
 }
 
 void UGamebeastConfigs::OnForeground()
 {
 	// Configurations may have changed while the game was suspended.
-	if (Configs.Num() > 0)
-	{
-		Refresh();
-	}
+	Refresh();
 }
 
 void UGamebeastConfigs::OnIdentityChanged()
@@ -99,7 +121,77 @@ void UGamebeastConfigs::OnIdentityChanged()
 	{
 		Pair.Value.Hash.Reset();
 	}
-	Refresh();
+	RefreshAll();
+}
+
+void UGamebeastConfigs::OnRatesChanged()
+{
+	if (Context.IsValid() && StatusPoller.IsValid())
+	{
+		StatusPoller->SetPollRate(Context->Rates.StatusPollRate);
+	}
+}
+
+void UGamebeastConfigs::HandleStatus(const TSharedRef<FJsonObject>& Status)
+{
+	if (!Context.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FGamebeastContext> StartedWith = Context;
+	if (UGamebeastExperiments* ExperimentsService = Experiments.Get())
+	{
+		const TSharedPtr<FJsonObject>* ByUnit = nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* UserExperiments = nullptr;
+		static const TArray<TSharedPtr<FJsonValue>> None;
+		const bool bHasUser = Status->TryGetObjectField(TEXT("experiments"), ByUnit)
+			&& (*ByUnit)->TryGetArrayField(TEXT("user"), UserExperiments);
+		ExperimentsService->ApplyCatalog(bHasUser ? *UserExperiments : None);
+	}
+	// An OnAssignmentsChanged handler may have shut the SDK down (and maybe set it up again).
+	if (Context != StartedWith)
+	{
+		return;
+	}
+
+	FGamebeastStatusPoller::FSummary Summary = FGamebeastStatusPoller::Summarize(*Status);
+	const bool bFirst = !bHaveSnapshot;
+	TMap<FString, FString> Previous = MoveTemp(SnapshotFingerprints);
+	SnapshotFingerprints = MoveTemp(Summary.Fingerprints);
+	SnapshotWithUserExperiments = MoveTemp(Summary.WithUserExperiments);
+	bHaveSnapshot = true;
+
+	// The first snapshot is the baseline later ones are diffed against. The startup evaluations
+	// may have been answered before it was taken, so an edit landing between the two would never
+	// be fetched: check everything once more (unchanged configurations answer "not modified").
+	if (bFirst)
+	{
+		RefreshAll();
+		return;
+	}
+
+	TArray<FString> Changed;
+	for (const TPair<FString, FConfigState>& Pair : Configs)
+	{
+		const FString Slug = Gamebeast::Environment::ToAliasSlug(Pair.Key);
+		const FString* Before = Previous.Find(Slug);
+		const FString* After = SnapshotFingerprints.Find(Slug);
+		// Appeared, disappeared, or moved. A configuration missing from both stays as it is
+		// (the unloaded retry covers one that was never found).
+		if ((Before == nullptr) != (After == nullptr) || (Before != nullptr && *Before != *After))
+		{
+			Changed.Add(Pair.Key);
+		}
+	}
+	if (Changed.Num() > 0)
+	{
+		GB_INFO(TEXT("%d configuration(s) changed; re-evaluating."), Changed.Num());
+	}
+	for (const FString& Alias : Changed)
+	{
+		RefreshConfig(Alias);
+	}
 }
 
 // --- Fetching ----------------------------------------------------------------------------------
@@ -142,9 +234,38 @@ void UGamebeastConfigs::Preload(const FString& ConfigurationAlias)
 
 void UGamebeastConfigs::Refresh()
 {
-	SecondsSinceRefresh = 0.f;
+	if (StatusPoller.IsValid())
+	{
+		StatusPoller->PollNow();
+	}
+	RefreshAll();
+}
+
+void UGamebeastConfigs::RefreshAll()
+{
+	SecondsSinceAssignmentRefresh = 0.f;
 	TArray<FString> Aliases;
 	Configs.GetKeys(Aliases);
+	for (const FString& Alias : Aliases)
+	{
+		RefreshConfig(Alias);
+	}
+}
+
+void UGamebeastConfigs::RefreshAssignments()
+{
+	SecondsSinceAssignmentRefresh = 0.f;
+	// Per-user changes (a manual assignment, a staged rollout reaching this user) don't move the
+	// environment snapshot, so only re-evaluation finds them. Only configurations an experiment
+	// is built on can carry one. Before the first snapshot we can't tell, so check them all.
+	TArray<FString> Aliases;
+	for (const TPair<FString, FConfigState>& Pair : Configs)
+	{
+		if (!bHaveSnapshot || SnapshotWithUserExperiments.Contains(Gamebeast::Environment::ToAliasSlug(Pair.Key)))
+		{
+			Aliases.Add(Pair.Key);
+		}
+	}
 	for (const FString& Alias : Aliases)
 	{
 		RefreshConfig(Alias);

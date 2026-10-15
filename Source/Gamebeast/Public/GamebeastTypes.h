@@ -79,14 +79,14 @@ struct GAMEBEAST_API FGamebeastExperimentAssignment
 	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
 	int64 ExperimentId = 0;
 
-	/** Empty until the experiment catalog has loaded. */
+	/** Empty until the first `/status` snapshot has loaded. */
 	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
 	FString ExperimentName;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
 	int64 GroupId = 0;
 
-	/** Empty until the experiment catalog has loaded. */
+	/** Empty until the first `/status` snapshot has loaded. */
 	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
 	FString GroupLabel;
 
@@ -97,6 +97,36 @@ struct GAMEBEAST_API FGamebeastExperimentAssignment
 	/** `weightedHash`, `roundRobin` or `manual`. */
 	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
 	FString Source;
+};
+
+/**
+ * How often the SDK talks to Gamebeast, in seconds. Values below a rate's minimum are raised to
+ * it (with a warning); the same names and minimums as the Roblox SDK.
+ */
+USTRUCT(BlueprintType)
+struct GAMEBEAST_API FGamebeastRates
+{
+	GENERATED_BODY()
+
+	/** How often queued markers are sent. A full batch (10 markers) is sent immediately. At least 5. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", meta = (ClampMin = "5", Units = "s"))
+	float MarkerFlushRate = 30.f;
+
+	/**
+	 * How often the SDK checks for configuration and experiment changes (`GET /sdk/v2/status`, which
+	 * costs almost nothing while nothing changed). During an incident Gamebeast can ask the SDK to
+	 * check less often, never more often. At least 5.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", meta = (ClampMin = "5", Units = "s"))
+	float StatusPollRate = 30.f;
+
+	/**
+	 * How often configurations with a running experiment are re-evaluated for the local user. This
+	 * is how a per-player change made on the dashboard (moving a player to another group, a staged
+	 * rollout reaching them) arrives mid-session. At least 10.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", meta = (ClampMin = "10", Units = "s"))
+	float AssignmentRefreshRate = 60.f;
 };
 
 /** Options for UGamebeastSubsystem::SetupWithOptions. Project Settings fill the same fields. */
@@ -131,9 +161,16 @@ struct GAMEBEAST_API FGamebeastSetupOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
 	FGamebeastProperties UserProperties;
 
-	/** Background configuration refresh cadence in seconds. 0 disables it. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", meta = (ClampMin = "0"))
-	float ConfigRefreshIntervalSeconds = 60.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	FGamebeastRates Rates;
+
+	/**
+	 * In the editor (Play In Editor included), use each rate's minimum instead of Rates, so changes
+	 * show up quickly while you test: markers every 5s, status every 5s, assignments every 10s.
+	 * Turn it off to test your own Rates in the editor. Packaged builds always use Rates.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	bool bFastRatesInEditor = true;
 
 	/** Start a new session after this long in the background. 0 keeps one session per run. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", meta = (ClampMin = "0"))

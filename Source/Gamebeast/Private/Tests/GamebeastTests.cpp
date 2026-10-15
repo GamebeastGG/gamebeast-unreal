@@ -10,6 +10,8 @@
 #include "Internal/GamebeastJson.h"
 #include "Internal/GamebeastMarkerQueue.h"
 #include "Internal/GamebeastPlatformFacts.h"
+#include "Internal/GamebeastRates.h"
+#include "Internal/GamebeastStatusPoller.h"
 
 // EAutomationTestFlags is a namespace before UE 5.5 and an enum class after; a macro fits both.
 #define GAMEBEAST_TEST_FLAGS (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
@@ -290,6 +292,118 @@ bool FGamebeastPlatformFactsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Namespace keys"), FString::Join(Keys, TEXT(",")),
 		FString(TEXT("appVersion,country,device,engineVersion,language,platform")));
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGamebeastRatesTest, "Gamebeast.Rates", GAMEBEAST_TEST_FLAGS)
+bool FGamebeastRatesTest::RunTest(const FString& Parameters)
+{
+	using namespace Gamebeast::Rates;
+
+	const FGamebeastRates Defaults;
+	TestEqual(TEXT("default flush"), Defaults.MarkerFlushRate, 30.f);
+	TestEqual(TEXT("default status poll"), Defaults.StatusPollRate, 30.f);
+	TestEqual(TEXT("default assignment refresh"), Defaults.AssignmentRefreshRate, 60.f);
+
+	AddExpectedError(TEXT("must be at least"), EAutomationExpectedErrorFlags::Contains, 3);
+	FGamebeastRates TooFast;
+	TooFast.MarkerFlushRate = 1.f;
+	TooFast.StatusPollRate = 0.f;
+	TooFast.AssignmentRefreshRate = 9.f;
+	const FGamebeastRates Clamped = Validate(TooFast);
+	TestEqual(TEXT("flush raised to 5"), Clamped.MarkerFlushRate, 5.f);
+	TestEqual(TEXT("status raised to 5"), Clamped.StatusPollRate, 5.f);
+	TestEqual(TEXT("assignments raised to 10"), Clamped.AssignmentRefreshRate, 10.f);
+
+	FGamebeastRates Slow;
+	Slow.MarkerFlushRate = 120.f;
+	TestEqual(TEXT("valid rates pass through"), Validate(Slow).MarkerFlushRate, 120.f);
+
+	FGamebeastSetupOptions Options;
+	Options.Rates = Slow;
+	TestEqual(TEXT("editor uses minimums"), Resolve(Options, true).MarkerFlushRate, 5.f);
+	TestEqual(TEXT("editor assignment minimum"), Resolve(Options, true).AssignmentRefreshRate, 10.f);
+	TestEqual(TEXT("packaged uses Rates"), Resolve(Options, false).MarkerFlushRate, 120.f);
+	Options.bFastRatesInEditor = false;
+	TestEqual(TEXT("editor opt-out uses Rates"), Resolve(Options, true).MarkerFlushRate, 120.f);
+
+	// NextPollDelay: RandomUnit 0.5 is the midpoint (no jitter).
+	const FPollingOverride None;
+	TestEqual(TEXT("base is the poll rate"), NextPollDelay(30.f, None, 0, -1.f, 0.5f), 30.f);
+	TestEqual(TEXT("never under the minimum"), NextPollDelay(1.f, None, 0, -1.f, 0.5f), 5.f);
+	TestEqual(TEXT("default jitter low"), NextPollDelay(30.f, None, 0, -1.f, 0.f), 24.f);
+	TestEqual(TEXT("default jitter high"), NextPollDelay(30.f, None, 0, -1.f, 1.f), 36.f);
+
+	FPollingOverride Shedding;
+	Shedding.bPresent = true;
+	Shedding.IntervalSeconds = 120.f;
+	Shedding.JitterRatio = 0.5f;
+	TestEqual(TEXT("override is a floor"), NextPollDelay(30.f, Shedding, 0, -1.f, 0.5f), 120.f);
+	TestEqual(TEXT("slower developer rate wins"), NextPollDelay(300.f, Shedding, 0, -1.f, 0.5f), 300.f);
+	TestEqual(TEXT("override jitter"), NextPollDelay(30.f, Shedding, 0, -1.f, 0.f), 60.f);
+
+	TestEqual(TEXT("first failure retries at the rate"), NextPollDelay(30.f, None, 1, -1.f, 0.5f), 30.f);
+	TestEqual(TEXT("then doubles"), NextPollDelay(30.f, None, 3, -1.f, 0.5f), 120.f);
+	TestEqual(TEXT("capped"), NextPollDelay(30.f, None, 20, -1.f, 0.5f), MaxBackoffSeconds);
+	TestEqual(TEXT("retry-after wins when longer"), NextPollDelay(30.f, None, 1, 90.f, 0.f), 90.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGamebeastStatusTest, "Gamebeast.Status", GAMEBEAST_TEST_FLAGS)
+bool FGamebeastStatusTest::RunTest(const FString& Parameters)
+{
+	const TSharedPtr<FJsonObject> Normal = Gamebeast::Json::ParseObject(TEXT(R"({
+		"hash": "s1",
+		"configurations": [
+			{ "id": 1, "name": "Main", "alias": "Main Config", "hash": "h1" },
+			{ "id": 2, "name": "Shop", "alias": "shop", "hash": "h2" },
+			{ "id": 3, "name": "Unnamed", "alias": null, "hash": "h3" }
+		],
+		"primaryConfigurationId": 1,
+		"experiments": {
+			"user": [ { "id": 7, "name": "Speed", "baseConfigurationId": 1, "groups": [] } ],
+			"server": [ { "id": 8, "name": "Server only", "baseConfigurationId": 2, "groups": [] } ]
+		},
+		"requiredProperties": []
+	})"));
+	if (!TestTrue(TEXT("fixture parses"), Normal.IsValid()))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("no polling field, no override"), FGamebeastStatusPoller::ParseOverride(*Normal).bPresent);
+
+	const FGamebeastStatusPoller::FSummary Summary = FGamebeastStatusPoller::Summarize(*Normal);
+	TestEqual(TEXT("aliased configurations only"), Summary.Fingerprints.Num(), 2);
+	TestTrue(TEXT("alias normalized"), Summary.Fingerprints.Contains(TEXT("main-config")));
+	TestTrue(TEXT("user experiment marks its base"), Summary.WithUserExperiments.Contains(TEXT("main-config")));
+	TestFalse(TEXT("server experiments ignored"), Summary.WithUserExperiments.Contains(TEXT("shop")));
+	TestEqual(TEXT("plain fingerprint is the hash"), Summary.Fingerprints[TEXT("shop")], FString(TEXT("h2")));
+
+	// Ending the experiment changes main-config's fingerprint even though its hash didn't move.
+	const TSharedPtr<FJsonObject> Ended = Gamebeast::Json::ParseObject(TEXT(R"({
+		"hash": "s2",
+		"configurations": [
+			{ "id": 1, "name": "Main", "alias": "Main Config", "hash": "h1" },
+			{ "id": 2, "name": "Shop", "alias": "shop", "hash": "h2" }
+		],
+		"primaryConfigurationId": 1,
+		"experiments": { "user": [], "server": [] },
+		"requiredProperties": [],
+		"polling": { "intervalSeconds": 120, "jitterRatio": 0.5 }
+	})"));
+	const FGamebeastStatusPoller::FSummary After = FGamebeastStatusPoller::Summarize(*Ended);
+	TestNotEqual(TEXT("experiment end moves the fingerprint"), After.Fingerprints[TEXT("main-config")],
+		Summary.Fingerprints[TEXT("main-config")]);
+	TestEqual(TEXT("untouched configuration is stable"), After.Fingerprints[TEXT("shop")], Summary.Fingerprints[TEXT("shop")]);
+
+	const Gamebeast::Rates::FPollingOverride Override = FGamebeastStatusPoller::ParseOverride(*Ended);
+	TestTrue(TEXT("override present"), Override.bPresent);
+	TestEqual(TEXT("override interval"), Override.IntervalSeconds, 120.f);
+	TestEqual(TEXT("override jitter"), Override.JitterRatio, 0.5f);
+
+	const TSharedPtr<FJsonObject> Bad = Gamebeast::Json::ParseObject(TEXT(R"({ "polling": { "intervalSeconds": 0, "jitterRatio": 2 } })"));
+	TestFalse(TEXT("invalid override ignored"), FGamebeastStatusPoller::ParseOverride(*Bad).bPresent);
 	return true;
 }
 

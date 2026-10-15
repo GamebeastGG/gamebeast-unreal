@@ -48,6 +48,8 @@ struct FGamebeastFetchResult
 	TSharedPtr<FJsonObject> Body;
 	FString Hash;
 	FString Error;
+	/** From `retry-after` on a failure, in seconds; negative when absent. */
+	float RetryAfterSeconds = -1.f;
 };
 
 /** Cohort lookup outcome. bOk is false when the request failed (the answer is unknown). */
@@ -64,7 +66,7 @@ struct FGamebeastCohortLookup
  *
  * Headers:
  * - every route: `authorization`, `sdkversion: gamebeast-unreal/<version>`
- * - v2: `environment: <alias>`
+ * - v2: `environment: <alias>`; `/status` also `server-id: <session id>`
  * - v1: `isstudio` (production false, development true), `serverid: <session id>`, `universeid: 0`
  *
  * Callbacks run on the game thread.
@@ -98,8 +100,13 @@ public:
 		const TSharedPtr<FJsonObject>& EvaluationContext,
 		FFetchCallback Callback);
 
-	/** `GET /sdk/v2/experiments/active?unit-type=user`: names and group labels for display. */
-	void GetActiveExperiments(const FString& KnownHash, FFetchCallback Callback);
+	/**
+	 * `GET /sdk/v2/status?hash=<KnownHash>`: the environment snapshot without documents (each
+	 * configuration's content hash, active experiments with names and group labels, and `polling`
+	 * while the backend sheds load). Unchanged since KnownHash is a 304, NotModified. Sends
+	 * `server-id: <session id>` so the per-caller rate limit is per game client, not per egress IP.
+	 */
+	void GetStatus(const FString& KnownHash, FFetchCallback Callback);
 
 	/** `POST /sdk/v1/cohorts/membership` for one user. */
 	void CheckCohortMembership(const FString& CohortName, const FString& UserId, FCohortCallback Callback);
@@ -114,7 +121,8 @@ private:
 		const TSharedPtr<FJsonObject>& Body,
 		bool bLegacyV1,
 		float TimeoutSeconds,
-		FResponseCallback Callback);
+		FResponseCallback Callback,
+		const TMap<FString, FString>& ExtraHeaders = TMap<FString, FString>());
 
 	FString ApiKey;
 	FString BaseUrl;

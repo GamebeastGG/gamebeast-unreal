@@ -16,6 +16,8 @@ namespace
 	constexpr float DefaultTimeoutSeconds = 10.f;
 	/** `MARKER_SERVER_ID_MAX_LENGTH` in @gamebeast/sdk-contract. */
 	constexpr int32 MarkerServerIdMaxLength = 100;
+	/** `SDK_SERVER_ID_MAX_LENGTH` in @gamebeast/sdk-contract (the `server-id` snapshot header). */
+	constexpr int32 SnapshotServerIdMaxLength = 128;
 
 	FString Truncate(const FString& Text, int32 MaxLength = 200)
 	{
@@ -88,7 +90,8 @@ void FGamebeastApiClient::Send(
 	const TSharedPtr<FJsonObject>& Body,
 	bool bLegacyV1,
 	float TimeoutSeconds,
-	FResponseCallback Callback)
+	FResponseCallback Callback,
+	const TMap<FString, FString>& ExtraHeaders)
 {
 	FString Url = BaseUrl + TEXT("/sdk/") + Path;
 	bool bFirst = true;
@@ -126,6 +129,10 @@ void FGamebeastApiClient::Send(
 	else
 	{
 		Request->SetHeader(TEXT("environment"), EnvironmentAlias);
+	}
+	for (const TPair<FString, FString>& Header : ExtraHeaders)
+	{
+		Request->SetHeader(Header.Key, Header.Value);
 	}
 
 	if (Body.IsValid())
@@ -244,42 +251,49 @@ void FGamebeastApiClient::EvaluateConfiguration(
 		});
 }
 
-void FGamebeastApiClient::GetActiveExperiments(const FString& KnownHash, FFetchCallback Callback)
+void FGamebeastApiClient::GetStatus(const FString& KnownHash, FFetchCallback Callback)
 {
-	TMap<FString, FString> Query;
-	Query.Add(TEXT("unit-type"), TEXT("user"));
+	TMap<FString, FString> Headers;
+	Headers.Add(TEXT("server-id"), SessionId.Left(SnapshotServerIdMaxLength));
 	if (!KnownHash.IsEmpty())
 	{
-		Query.Add(TEXT("hash"), KnownHash);
+		// The ETag is the hash, quoted.
+		Headers.Add(TEXT("if-none-match"), FString::Printf(TEXT("\"%s\""), *KnownHash));
 	}
 
-	Send(TEXT("GET"), TEXT("v2/experiments/active"), Query, nullptr, /*bLegacyV1*/ false, DefaultTimeoutSeconds,
+	Send(TEXT("GET"), TEXT("v2/status"), {}, nullptr, /*bLegacyV1*/ false, DefaultTimeoutSeconds,
 		[KnownHash, Callback = MoveTemp(Callback)](const FGamebeastHttpResponse& Response)
 		{
 			FGamebeastFetchResult Result;
 			if (Response.IsNotModified())
 			{
 				Result.Status = EGamebeastFetchStatus::NotModified;
+				Result.Hash = KnownHash;
 				Callback(Result);
 				return;
 			}
 			if (!Response.IsSuccess())
 			{
 				Result.Error = Response.Describe();
+				Result.RetryAfterSeconds = Response.RetryAfterSeconds;
 				Callback(Result);
 				return;
 			}
 
+			// `polling` is optional (present only while the backend sheds load), so it isn't required.
 			const TSharedPtr<FJsonObject> Json = Response.JsonBody();
-			const TArray<TSharedPtr<FJsonValue>>* Experiments = nullptr;
-			if (!Json.IsValid() || !Json->TryGetStringField(TEXT("hash"), Result.Hash)
-				|| !Json->TryGetArrayField(TEXT("experiments"), Experiments))
+			const TArray<TSharedPtr<FJsonValue>>* Configurations = nullptr;
+			const TSharedPtr<FJsonObject>* Experiments = nullptr;
+			if (!Json.IsValid() || !Json->TryGetStringField(TEXT("hash"), Result.Hash) || Result.Hash.IsEmpty()
+				|| !Json->TryGetArrayField(TEXT("configurations"), Configurations)
+				|| !Json->TryGetObjectField(TEXT("experiments"), Experiments))
 			{
-				Result.Error = TEXT("unexpected active experiments response shape");
+				Result.Error = TEXT("unexpected status response shape");
 				Callback(Result);
 				return;
 			}
 
+			// Some platform HTTP stacks answer a conditional request from their own cache with a 200.
 			if (!KnownHash.IsEmpty() && Result.Hash == KnownHash)
 			{
 				Result.Status = EGamebeastFetchStatus::NotModified;
@@ -290,7 +304,8 @@ void FGamebeastApiClient::GetActiveExperiments(const FString& KnownHash, FFetchC
 				Result.Body = Json;
 			}
 			Callback(Result);
-		});
+		},
+		Headers);
 }
 
 void FGamebeastApiClient::CheckCohortMembership(

@@ -33,7 +33,8 @@ public:
 	struct FOptions
 	{
 		int32 MaxBatchSize = 10;
-		float FlushIntervalSeconds = 10.f;
+		/** Gamebeast::Rates validates the configured value (default 30, at least 5). */
+		float FlushIntervalSeconds = 30.f;
 		int32 MaxBufferedMarkers = 500;
 		int32 MaxSendAttempts = 5;
 		float RetryBaseDelaySeconds = 2.f;
@@ -65,6 +66,9 @@ public:
 
 	/** Stop sending; later Enqueue calls are dropped with a warning. */
 	void Stop() { bStopped = true; }
+
+	/** Applies to markers already waiting too: they go out once they've waited the new interval. */
+	void SetFlushInterval(float Seconds) { Options.FlushIntervalSeconds = Seconds; }
 
 private:
 	struct FRetryBatch

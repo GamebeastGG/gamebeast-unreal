@@ -55,8 +55,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
 	TArray<FString> Configurations;
 
-	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast", meta = (ClampMin = "0"))
-	float ConfigRefreshIntervalSeconds = 60.f;
+	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast|Rates", meta = (ShowOnlyInnerProperties))
+	FGamebeastRates Rates;
+
+	/** Use each rate's minimum in the editor so changes show up quickly. Packaged builds use Rates. */
+	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast|Rates")
+	bool bFastRatesInEditor = true;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast", meta = (ClampMin = "0"))
 	float SessionTimeoutSeconds = 1800.f;

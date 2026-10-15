@@ -15,6 +15,7 @@
 #include "Internal/GamebeastContext.h"
 #include "Internal/GamebeastEnvironment.h"
 #include "Internal/GamebeastLog.h"
+#include "Internal/GamebeastRates.h"
 #include "Misc/CoreDelegates.h"
 
 /** `DISTINCT_ID_MAX_LENGTH` in @gamebeast/sdk-contract. */
@@ -93,6 +94,7 @@ bool UGamebeastSubsystem::SetupWithOptions(const FGamebeastSetupOptions& Options
 	const TSharedRef<FGamebeastContext> NewContext = MakeShared<FGamebeastContext>();
 	NewContext->Options = Options;
 	NewContext->Options.ApiKey = ApiKey;
+	NewContext->Rates = Gamebeast::Rates::Resolve(Options, GIsEditor);
 	NewContext->EnvironmentAlias =
 		Gamebeast::Environment::Resolve(Options.Environment, Options.CustomEnvironment, GIsEditor);
 	NewContext->AnonymousId = FGamebeastContext::LoadOrCreateAnonymousId();
@@ -115,7 +117,29 @@ bool UGamebeastSubsystem::SetupWithOptions(const FGamebeastSetupOptions& Options
 
 	UE_LOG(LogGamebeast, Log, TEXT("Gamebeast SDK %s started (environment: %s)."),
 		*FGamebeastApiClient::UserAgentVersion(), *NewContext->EnvironmentAlias);
+	GB_INFO(TEXT("Rates: markers every %.0fs, status every %.0fs, assignments every %.0fs%s."),
+		NewContext->Rates.MarkerFlushRate, NewContext->Rates.StatusPollRate, NewContext->Rates.AssignmentRefreshRate,
+		GIsEditor && Options.bFastRatesInEditor ? TEXT(" (editor minimums; see bFastRatesInEditor)") : TEXT(""));
 	return true;
+}
+
+void UGamebeastSubsystem::UpdateRates(const FGamebeastRates& Rates)
+{
+	if (!Context.IsValid())
+	{
+		GB_WARN(TEXT("UpdateRates called before Setup; set Rates in FGamebeastSetupOptions or Project Settings instead."));
+		return;
+	}
+	// An explicit call wins over the editor minimums.
+	Context->Options.Rates = Rates;
+	Context->Rates = Gamebeast::Rates::Validate(Rates);
+	Markers->OnRatesChanged();
+	Configs->OnRatesChanged();
+}
+
+FGamebeastRates UGamebeastSubsystem::GetRates() const
+{
+	return Context.IsValid() ? Context->Rates : FGamebeastRates();
 }
 
 void UGamebeastSubsystem::Shutdown()

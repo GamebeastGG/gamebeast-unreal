@@ -64,6 +64,17 @@ public:
 	FString GetSessionId() const;
 
 	/**
+	 * Change the rates while running. Values below a minimum are raised to it with a warning.
+	 * Overrides the editor minimums (bFastRatesInEditor) for the rest of the session.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Gamebeast")
+	void UpdateRates(const FGamebeastRates& Rates);
+
+	/** The rates in effect (after validation and editor minimums). Defaults before Setup. */
+	UFUNCTION(BlueprintPure, Category = "Gamebeast")
+	FGamebeastRates GetRates() const;
+
+	/**
 	 * Switch to a known user id (after login). Configurations re-evaluate for them right away.
 	 * Not persisted: call it again on the next launch once your login state is restored.
 	 */

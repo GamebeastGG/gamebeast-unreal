@@ -14,9 +14,9 @@ struct FGamebeastContext;
 /**
  * Analytics markers (events), attributed to the local user.
  *
- * Markers are batched and sent automatically: when 10 are waiting, every 10 seconds, and on
- * Flush. Failed sends retry with backoff. Markers still buffered when the game goes to the
- * background or shuts down are saved on the device and sent on the next launch.
+ * Markers are batched and sent automatically: when 10 are waiting, every MarkerFlushRate seconds
+ * (default 30), and on Flush. Failed sends retry with backoff. Markers still buffered when the
+ * game goes to the background or shuts down are saved on the device and sent on the next launch.
  */
 UCLASS(BlueprintType)
 class GAMEBEAST_API UGamebeastMarkers : public UObject
@@ -52,6 +52,8 @@ private:
 	/** Send markers saved by PersistUnsent (on resume, or by a previous run). */
 	void RestorePersisted();
 	void Stop();
+	/** Context->Rates changed (UGamebeastSubsystem::UpdateRates). */
+	void OnRatesChanged();
 
 	FString StoreFileName() const;
 

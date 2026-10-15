@@ -8,10 +8,9 @@
 void UGamebeastExperiments::Start(const TSharedRef<FGamebeastContext>& InContext)
 {
 	Context = InContext;
-	// Cached configurations may have reported assignments already.
+	// Cached configurations may have reported assignments already; names arrive with /status.
 	if (ReportedByConfiguration.Num() > 0)
 	{
-		RefreshCatalogIfNeeded();
 		Rebuild();
 	}
 }
@@ -21,8 +20,6 @@ void UGamebeastExperiments::Stop()
 	Context.Reset();
 	ReportedByConfiguration.Reset();
 	Catalog.Reset();
-	CatalogHash.Reset();
-	bCatalogInFlight = false;
 	Assignments.Reset();
 }
 
@@ -74,90 +71,46 @@ void UGamebeastExperiments::ReportAssignments(
 		}
 	}
 	ReportedByConfiguration.Add(ConfigurationAlias, MoveTemp(Parsed));
-
-	RefreshCatalogIfNeeded();
 	Rebuild();
 }
 
-void UGamebeastExperiments::RefreshCatalogIfNeeded()
+void UGamebeastExperiments::ApplyCatalog(const TArray<TSharedPtr<FJsonValue>>& Descriptors)
 {
-	if (!Context.IsValid() || !Context->Api.IsValid() || bCatalogInFlight)
+	TMap<int64, FCatalogEntry> Next;
+	for (const TSharedPtr<FJsonValue>& Value : Descriptors)
 	{
-		return;
-	}
-
-	bool bHasUnknown = false;
-	for (const TPair<FString, TArray<FReported>>& Pair : ReportedByConfiguration)
-	{
-		for (const FReported& Entry : Pair.Value)
+		const TSharedPtr<FJsonObject>* Experiment = nullptr;
+		double Id = 0.0;
+		if (!Value.IsValid() || !Value->TryGetObject(Experiment) || !(*Experiment)->TryGetNumberField(TEXT("id"), Id))
 		{
-			bHasUnknown |= !Catalog.Contains(Entry.ExperimentId);
+			continue;
+		}
+		FCatalogEntry& Entry = Next.Add(static_cast<int64>(Id));
+		(*Experiment)->TryGetStringField(TEXT("name"), Entry.Name);
+
+		const TArray<TSharedPtr<FJsonValue>>* Groups = nullptr;
+		if ((*Experiment)->TryGetArrayField(TEXT("groups"), Groups))
+		{
+			for (const TSharedPtr<FJsonValue>& GroupValue : *Groups)
+			{
+				const TSharedPtr<FJsonObject>* Group = nullptr;
+				double GroupId = 0.0;
+				FString Label;
+				if (GroupValue.IsValid() && GroupValue->TryGetObject(Group) && (*Group)->TryGetNumberField(TEXT("id"), GroupId)
+					&& (*Group)->TryGetStringField(TEXT("label"), Label))
+				{
+					Entry.GroupLabels.Add(static_cast<int64>(GroupId), Label);
+				}
+			}
 		}
 	}
-	if (!bHasUnknown)
+
+	Catalog = MoveTemp(Next);
+	GB_INFO(TEXT("Experiment catalog updated (%d active)."), Catalog.Num());
+	if (ReportedByConfiguration.Num() > 0)
 	{
-		return;
+		Rebuild();
 	}
-
-	bCatalogInFlight = true;
-	TWeakObjectPtr<UGamebeastExperiments> WeakThis(this);
-	const TWeakPtr<FGamebeastContext> WeakContext = Context;
-	Context->Api->GetActiveExperiments(CatalogHash,
-		[WeakThis, WeakContext](const FGamebeastFetchResult& Result)
-		{
-			UGamebeastExperiments* This = WeakThis.Get();
-			if (This == nullptr || !This->Context.IsValid() || This->Context != WeakContext.Pin())
-			{
-				return;
-			}
-			This->bCatalogInFlight = false;
-
-			if (Result.Status == EGamebeastFetchStatus::Updated && Result.Body.IsValid())
-			{
-				This->CatalogHash = Result.Hash;
-				This->Catalog.Reset();
-				const TArray<TSharedPtr<FJsonValue>>* Experiments = nullptr;
-				if (Result.Body->TryGetArrayField(TEXT("experiments"), Experiments))
-				{
-					for (const TSharedPtr<FJsonValue>& Value : *Experiments)
-					{
-						const TSharedPtr<FJsonObject>* Experiment = nullptr;
-						double Id = 0.0;
-						if (!Value.IsValid() || !Value->TryGetObject(Experiment)
-							|| !(*Experiment)->TryGetNumberField(TEXT("id"), Id))
-						{
-							continue;
-						}
-						FCatalogEntry& Entry = This->Catalog.Add(static_cast<int64>(Id));
-						(*Experiment)->TryGetStringField(TEXT("name"), Entry.Name);
-
-						const TArray<TSharedPtr<FJsonValue>>* Groups = nullptr;
-						if ((*Experiment)->TryGetArrayField(TEXT("groups"), Groups))
-						{
-							for (const TSharedPtr<FJsonValue>& GroupValue : *Groups)
-							{
-								const TSharedPtr<FJsonObject>* Group = nullptr;
-								double GroupId = 0.0;
-								FString Label;
-								if (GroupValue.IsValid() && GroupValue->TryGetObject(Group)
-									&& (*Group)->TryGetNumberField(TEXT("id"), GroupId)
-									&& (*Group)->TryGetStringField(TEXT("label"), Label))
-								{
-									Entry.GroupLabels.Add(static_cast<int64>(GroupId), Label);
-								}
-							}
-						}
-					}
-				}
-				GB_INFO(TEXT("Experiment catalog updated (%d active)."), This->Catalog.Num());
-				This->Rebuild();
-			}
-			else if (Result.Status == EGamebeastFetchStatus::Failed)
-			{
-				GB_WARN(TEXT("Experiment catalog fetch failed (%s); assignments show without names until it succeeds."),
-					*Result.Error);
-			}
-		});
 }
 
 void UGamebeastExperiments::Rebuild()

@@ -12,6 +12,9 @@ struct FGamebeastContext
 {
 	FGamebeastSetupOptions Options;
 
+	/** Options.Rates after validation (or the minimums in the editor). What the services run on. */
+	FGamebeastRates Rates;
+
 	/** "production", "development", or a custom alias. */
 	FString EnvironmentAlias;
 

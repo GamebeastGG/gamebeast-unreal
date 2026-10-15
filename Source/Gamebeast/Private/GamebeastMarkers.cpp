@@ -61,6 +61,9 @@ void UGamebeastMarkers::Start(const TSharedRef<FGamebeastContext>& InContext)
 {
 	Context = InContext;
 
+	FGamebeastMarkerQueue::FOptions QueueOptions;
+	QueueOptions.FlushIntervalSeconds = InContext->Rates.MarkerFlushRate;
+
 	const TWeakPtr<FGamebeastApiClient> WeakApi = InContext->Api;
 	Queue = MakeShared<FGamebeastMarkerQueue>(
 		[WeakApi](const TArray<TSharedPtr<FJsonValue>>& Markers, TFunction<void(const FGamebeastHttpResponse&)> OnComplete)
@@ -75,9 +78,17 @@ void UGamebeastMarkers::Start(const TSharedRef<FGamebeastContext>& InContext)
 			}
 			Api->PostMarkers(Markers, MoveTemp(OnComplete));
 		},
-		FGamebeastMarkerQueue::FOptions());
+		QueueOptions);
 
 	RestorePersisted();
+}
+
+void UGamebeastMarkers::OnRatesChanged()
+{
+	if (Queue.IsValid() && Context.IsValid())
+	{
+		Queue->SetFlushInterval(Context->Rates.MarkerFlushRate);
+	}
 }
 
 void UGamebeastMarkers::Tick(float DeltaSeconds)

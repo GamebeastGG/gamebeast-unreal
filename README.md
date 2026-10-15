@@ -76,7 +76,7 @@ All services hang off `UGamebeastSubsystem`. `Shutdown()` saves what is buffered
 - `SendMarkerJson(MarkerType, TSharedPtr<FJsonObject>)`: C++, raw JSON.
 - `Flush()`: send what is buffered now.
 
-Markers are batched (10 per request, or every 10 seconds). Failed sends retry with exponential backoff; permanent rejections (4xx) are dropped and logged. Anything still buffered when the game goes to the background or shuts down is saved under `Saved/Gamebeast/` and sent on the next launch. Vectors are sent as `[x, y, z]`, the shape heatmaps read.
+Markers are batched: a full batch of 10 is sent immediately, otherwise every `MarkerFlushRate` seconds (default 30). Failed sends retry with exponential backoff; permanent rejections (4xx) are dropped and logged. Anything still buffered when the game goes to the background or shuts down is saved under `Saved/Gamebeast/` and sent on the next launch. Vectors are sent as `[x, y, z]`, the shape heatmaps read.
 
 Sessions last one game instance and rotate after `SessionTimeoutSeconds` in the background (default 30 minutes).
 
@@ -90,7 +90,12 @@ Values are addressed by dot-path: the first segment is the configuration alias, 
 - `OnConfigurationUpdated`: Blueprint event with the alias of a configuration that just loaded new values.
 - `Preload(Alias)` / `Refresh()`.
 
-Configurations load on demand: the first read fetches the configuration. Every configuration is cached on the device (`Saved/Gamebeast/`), so values are there instantly on the next launch and offline. The cache is stamped with your project version (**Project Settings > Description > Project Version**) and the distinct id; a cache from another build or user is discarded. The SDK re-checks every `ConfigRefreshIntervalSeconds` (default 60) using hashes, so unchanged configurations cost almost nothing.
+Configurations load on demand: the first read fetches the configuration. Every configuration is cached on the device (`Saved/Gamebeast/`), so values are there instantly on the next launch and offline. The cache is stamped with your project version (**Project Settings > Description > Project Version**) and the distinct id; a cache from another build or user is discarded. The SDK keeps them current two ways:
+
+- **Project changes** (an edit on the dashboard, an experiment starting or ending): every `StatusPollRate` seconds (default 30) the SDK asks `GET /sdk/v2/status` whether anything changed. Unchanged answers cost almost nothing, and only configurations that moved are re-evaluated. During an incident Gamebeast can ask the SDK to check less often, never more often.
+- **Per-player changes** (moving this player to another group, a staged rollout reaching them): every `AssignmentRefreshRate` seconds (default 60) the SDK re-evaluates configurations that have a running experiment. Unchanged ones answer "not modified".
+
+`Refresh()` does both now. Returning from the background does too.
 
 Configurations are **evaluated for the local user**: if they are in an active experiment, the values already include their group's changes.
 
@@ -119,12 +124,17 @@ Results are cached for a minute; membership is recomputed by the backend, so tre
 | `CustomEnvironment` | none | Target an environment by its dashboard alias; overrides `Environment`. |
 | `Configurations` | none | Configurations to preload and gate `OnReady` on. Others load on first use. |
 | `UserProperties` | none | Code only. Custom targeting properties. |
-| `ConfigRefreshIntervalSeconds` | `60` | Background refresh cadence; `0` disables it. |
+| `Rates.MarkerFlushRate` | `30` | Seconds between marker sends. At least 5. |
+| `Rates.StatusPollRate` | `30` | Seconds between checks for configuration and experiment changes. At least 5. |
+| `Rates.AssignmentRefreshRate` | `60` | Seconds between re-evaluations of configurations with a running experiment. At least 10. |
+| `bFastRatesInEditor` | `true` | In the editor (including PIE), use each rate's minimum (5 / 5 / 10) so changes show up quickly. Packaged builds always use `Rates`. |
 | `SessionTimeoutSeconds` | `1800` | New session after this long in the background; `0` keeps one per run. |
 | `bDebugLogging` | `false` | Verbose `LogGamebeast` output. |
 | `ApiUrl` | `https://api.gamebeast.gg` | API base URL override. |
 | `bAutoInitialize` | `true` | Project Settings only. Start without code when an API key is set. |
 | `bAutoInitializeOnDedicatedServer` | `false` | Project Settings only. Also auto-start on dedicated servers. |
+
+Values below a rate's minimum are raised to it, with a warning in the log. To change the rates while the game runs, call `UGamebeastSubsystem::UpdateRates(Rates)`; `GetRates()` returns the rates in effect.
 
 ## Layout
 

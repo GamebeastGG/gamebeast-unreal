@@ -14,7 +14,8 @@ FGamebeastSetupOptions UGamebeastSettings::ToSetupOptions() const
 	Options.Environment = Environment;
 	Options.CustomEnvironment = CustomEnvironment;
 	Options.Configurations = Configurations;
-	Options.ConfigRefreshIntervalSeconds = ConfigRefreshIntervalSeconds;
+	Options.Rates = Rates;
+	Options.bFastRatesInEditor = bFastRatesInEditor;
 	Options.SessionTimeoutSeconds = SessionTimeoutSeconds;
 	Options.bDebugLogging = bDebugLogging;
 	Options.ApiUrl = ApiUrl;

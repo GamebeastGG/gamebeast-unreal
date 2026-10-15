@@ -9,6 +9,7 @@
 #include "GamebeastConfigs.generated.h"
 
 class UGamebeastExperiments;
+class FGamebeastStatusPoller;
 struct FGamebeastContext;
 
 /**
@@ -60,7 +61,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Gamebeast|Configs")
 	void Preload(const FString& ConfigurationAlias);
 
-	/** Re-check every known configuration now instead of waiting for the refresh interval. */
+	/**
+	 * Check for changes now instead of waiting: polls `/status` and re-evaluates every known
+	 * configuration for the local user (unchanged ones answer with a cheap "not modified").
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Gamebeast|Configs")
 	void Refresh();
 
@@ -111,10 +115,15 @@ private:
 	void Tick(float DeltaSeconds);
 	void OnForeground();
 	void OnIdentityChanged();
+	/** Context->Rates changed (UGamebeastSubsystem::UpdateRates). */
+	void OnRatesChanged();
 	void Stop();
 
 	FConfigState* EnsureConfig(const FString& Alias, bool bRequiredForReady);
 	void RefreshConfig(const FString& Alias);
+	void RefreshAll();
+	void RefreshAssignments();
+	void HandleStatus(const TSharedRef<FJsonObject>& Status);
 	void ApplyResponse(FConfigState& State, const TSharedPtr<FJsonObject>& Response, bool bPersist);
 	void CheckReady();
 	TSharedPtr<FJsonValue> Lookup(const FString& Path, bool bLogMissing);
@@ -126,6 +135,8 @@ private:
 
 	TSharedPtr<FGamebeastContext> Context;
 	TWeakObjectPtr<UGamebeastExperiments> Experiments;
+	/** Shared rather than unique so this public header needn't see the internal type. */
+	TSharedPtr<FGamebeastStatusPoller> StatusPoller;
 
 	/** FString keys compare case-insensitively, like configuration aliases. */
 	TMap<FString, FConfigState> Configs;
@@ -133,6 +144,11 @@ private:
 	TArray<TFunction<void()>> ReadyCallbacks;
 	int64 NextListenerId = 1;
 	bool bReady = false;
-	float SecondsSinceRefresh = 0.f;
+	float SecondsSinceAssignmentRefresh = 0.f;
 	float SecondsSinceUnloadedRetry = 0.f;
+
+	/** From the last `/status` snapshot, keyed by normalized alias. Empty until one loads. */
+	TMap<FString, FString> SnapshotFingerprints;
+	TSet<FString> SnapshotWithUserExperiments;
+	bool bHaveSnapshot = false;
 };

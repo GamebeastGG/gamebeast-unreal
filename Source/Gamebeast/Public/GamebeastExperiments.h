@@ -38,6 +38,9 @@ public:
 	/** Fed by UGamebeastConfigs: the `experiments` array of an evaluated configuration. */
 	void ReportAssignments(const FString& ConfigurationAlias, const TArray<TSharedPtr<FJsonValue>>& Reported);
 
+	/** Fed by UGamebeastConfigs: `experiments.user` from `/status`, for names and group labels. */
+	void ApplyCatalog(const TArray<TSharedPtr<FJsonValue>>& Descriptors);
+
 private:
 	friend class UGamebeastSubsystem;
 
@@ -66,12 +69,9 @@ private:
 	void Stop();
 
 	void Rebuild();
-	void RefreshCatalogIfNeeded();
 
 	TSharedPtr<FGamebeastContext> Context;
 	TMap<FString, TArray<FReported>> ReportedByConfiguration;
 	TMap<int64, FCatalogEntry> Catalog;
-	FString CatalogHash;
-	bool bCatalogInFlight = false;
 	TArray<FGamebeastExperimentAssignment> Assignments;
 };
