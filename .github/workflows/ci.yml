@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# GitHub-hosted runners have no Unreal Engine, so this job checks what it can without one:
+# the plugin descriptor parses, versions agree, and every header has its include guard.
+# Compile + automation tests run on a machine with UE 5.3+ (see README > Tests).
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Plugin descriptor is valid JSON
+        run: python3 -c "import json; json.load(open('Gamebeast.uplugin'))"
+
+      - name: Plugin and SDK versions match
+        run: |
+          plugin=$(python3 -c "import json; print(json.load(open('Gamebeast.uplugin'))['VersionName'])")
+          sdk=$(sed -n 's/^#define GAMEBEAST_SDK_VERSION TEXT("\(.*\)")$/\1/p' Source/Gamebeast/Public/Gamebeast.h)
+          echo "uplugin: $plugin, Gamebeast.h: $sdk"
+          test -n "$sdk" && test "$plugin" = "$sdk"
+
+      - name: Changelog has an entry for this version
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('Gamebeast.uplugin'))['VersionName'])")
+          grep -q "^## $version\$" CHANGELOG.md
+
+      - name: Headers use pragma once
+        run: |
+          missing=$(grep -L '#pragma once' $(find Source -name '*.h') || true)
+          if [ -n "$missing" ]; then echo "Missing #pragma once:"; echo "$missing"; exit 1; fi

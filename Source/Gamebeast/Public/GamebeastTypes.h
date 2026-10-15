@@ -1,0 +1,157 @@
+// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+
+#include "GamebeastTypes.generated.h"
+
+/**
+ * Which Gamebeast environment the SDK talks to.
+ *
+ * TODO(post-release): custom environments. The backend is about to support project-defined
+ * environments beyond production/development. Until then this mirrors the Unity SDK: two fixed
+ * values plus FGamebeastSetupOptions::CustomEnvironment as a free-form alias override.
+ */
+UENUM(BlueprintType)
+enum class EGamebeastEnvironment : uint8
+{
+	/** Development in the editor (including Play In Editor), Production in packaged builds. */
+	Auto,
+	Production,
+	Development,
+};
+
+/**
+ * A JSON object of marker or targeting properties.
+ *
+ * C++ builds it fluently:
+ *   FGamebeastProperties().Set(TEXT("Score"), 600).Set(TEXT("Map"), TEXT("Office"))
+ * Blueprint builds it with the "Make Gamebeast Properties" and "Set ..." nodes.
+ *
+ * Copies are cheap and independent: the first write after a copy clones the underlying object.
+ */
+USTRUCT(BlueprintType)
+struct GAMEBEAST_API FGamebeastProperties
+{
+	GENERATED_BODY()
+
+	FGamebeastProperties() = default;
+	explicit FGamebeastProperties(const TSharedPtr<FJsonObject>& InJson);
+
+	FGamebeastProperties& Set(const FString& Key, int32 Value);
+	FGamebeastProperties& Set(const FString& Key, int64 Value);
+	FGamebeastProperties& Set(const FString& Key, float Value);
+	FGamebeastProperties& Set(const FString& Key, double Value);
+	FGamebeastProperties& Set(const FString& Key, bool Value);
+	FGamebeastProperties& Set(const FString& Key, const TCHAR* Value);
+	FGamebeastProperties& Set(const FString& Key, const FString& Value);
+	FGamebeastProperties& Set(const FString& Key, const FName& Value);
+	/** Serialized as `[x, y, z]`, the shape heatmap queries read positions in. */
+	FGamebeastProperties& Set(const FString& Key, const FVector& Value);
+	FGamebeastProperties& Set(const FString& Key, const FVector2D& Value);
+	FGamebeastProperties& Set(const FString& Key, const FGamebeastProperties& Nested);
+	FGamebeastProperties& Set(const FString& Key, const TArray<FString>& Values);
+	FGamebeastProperties& Set(const FString& Key, const TArray<double>& Values);
+	FGamebeastProperties& SetJson(const FString& Key, const TSharedPtr<FJsonValue>& Value);
+	FGamebeastProperties& Remove(const FString& Key);
+
+	bool IsEmpty() const;
+	int32 Num() const;
+
+	/** The underlying object (never null). Treat it as read-only. */
+	TSharedRef<FJsonObject> ToJson() const;
+
+private:
+	FJsonObject& Mutable();
+
+	TSharedPtr<FJsonObject> Json;
+};
+
+/** One experiment the local user is enrolled in, as reported on evaluated configurations. */
+USTRUCT(BlueprintType)
+struct GAMEBEAST_API FGamebeastExperimentAssignment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
+	int64 ExperimentId = 0;
+
+	/** Empty until the experiment catalog has loaded. */
+	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
+	FString ExperimentName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
+	int64 GroupId = 0;
+
+	/** Empty until the experiment catalog has loaded. */
+	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
+	FString GroupLabel;
+
+	/** The configuration whose evaluation reported this assignment. */
+	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
+	FString ConfigurationAlias;
+
+	/** `weightedHash`, `roundRobin` or `manual`. */
+	UPROPERTY(BlueprintReadOnly, Category = "Gamebeast|Experiments")
+	FString Source;
+};
+
+/** Options for UGamebeastSubsystem::SetupWithOptions. Project Settings fill the same fields. */
+USTRUCT(BlueprintType)
+struct GAMEBEAST_API FGamebeastSetupOptions
+{
+	GENERATED_BODY()
+
+	/** Your project's SDK Key (Project Settings > API Keys in the dashboard). Required. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	FString ApiKey;
+
+	/** The local user's id. Leave empty to use an anonymous id generated once per device. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	FString DistinctId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	EGamebeastEnvironment Environment = EGamebeastEnvironment::Auto;
+
+	/**
+	 * Target an environment by its dashboard alias (e.g. "staging"). Overrides Environment.
+	 * TODO(post-release): revisit when custom environments ship on the backend.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	FString CustomEnvironment;
+
+	/** Configurations to preload at startup; IsReady/OnReady wait for these. Others load on first use. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	TArray<FString> Configurations;
+
+	/** Custom targeting properties for experiments (strings, numbers, booleans). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	FGamebeastProperties UserProperties;
+
+	/** Background configuration refresh cadence in seconds. 0 disables it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", meta = (ClampMin = "0"))
+	float ConfigRefreshIntervalSeconds = 60.f;
+
+	/** Start a new session after this long in the background. 0 keeps one session per run. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", meta = (ClampMin = "0"))
+	float SessionTimeoutSeconds = 1800.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
+	bool bDebugLogging = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast", AdvancedDisplay)
+	FString ApiUrl = TEXT("https://api.gamebeast.gg");
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FGamebeastOnReady);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FGamebeastOnConfigurationUpdated, const FString&, ConfigurationAlias);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FGamebeastOnAssignmentsChanged, const TArray<FGamebeastExperimentAssignment>&, Assignments);
+
+/** C++ callback for UGamebeastConfigs::OnChanged / Observe. The value is null when the path is missing. */
+DECLARE_DELEGATE_OneParam(FGamebeastConfigValueCallback, const TSharedPtr<FJsonValue>& /* Value */);
+/** C++ callback for UGamebeastCohorts::IsMember. */
+DECLARE_DELEGATE_OneParam(FGamebeastCohortResult, bool /* bIsMember */);

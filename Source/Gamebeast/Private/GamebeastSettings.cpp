@@ -1,0 +1,22 @@
+// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+
+#include "GamebeastSettings.h"
+
+UGamebeastSettings::UGamebeastSettings()
+{
+	SectionName = TEXT("Gamebeast");
+}
+
+FGamebeastSetupOptions UGamebeastSettings::ToSetupOptions() const
+{
+	FGamebeastSetupOptions Options;
+	Options.ApiKey = ApiKey;
+	Options.Environment = Environment;
+	Options.CustomEnvironment = CustomEnvironment;
+	Options.Configurations = Configurations;
+	Options.ConfigRefreshIntervalSeconds = ConfigRefreshIntervalSeconds;
+	Options.SessionTimeoutSeconds = SessionTimeoutSeconds;
+	Options.bDebugLogging = bDebugLogging;
+	Options.ApiUrl = ApiUrl;
+	return Options;
+}

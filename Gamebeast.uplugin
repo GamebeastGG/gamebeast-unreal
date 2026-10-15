@@ -1,0 +1,22 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "Gamebeast",
+  "Description": "Gamebeast SDK for Unreal Engine: analytics markers, remote configurations, experiments and cohorts.",
+  "Category": "Analytics",
+  "CreatedBy": "Gamebeast",
+  "CreatedByURL": "https://gamebeast.gg",
+  "DocsURL": "https://docs.gamebeast.gg/sdk/unreal",
+  "SupportURL": "https://docs.gamebeast.gg",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "Gamebeast",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
