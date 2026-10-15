@@ -38,6 +38,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Gamebeast|Configs")
 	bool HasValue(const FString& Path);
 
+	/**
+	 * Typed reads. DefaultValue is both a fallback and a type check, as in the other SDKs: it is
+	 * returned when the configuration hasn't loaded, the path is missing or null, or the value is a
+	 * different JSON type (a string where a number was expected). Pass the value your game uses
+	 * today, so it behaves the same offline. Each problem is logged once, not on every read.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Gamebeast|Configs")
 	FString GetString(const FString& Path, const FString& DefaultValue);
 
@@ -127,6 +133,8 @@ private:
 	void ApplyResponse(FConfigState& State, const TSharedPtr<FJsonObject>& Response, bool bPersist);
 	void CheckReady();
 	TSharedPtr<FJsonValue> Lookup(const FString& Path, bool bLogMissing);
+	/** Lookup, or null (warned once per path) when the value has a different JSON type. */
+	TSharedPtr<FJsonValue> LookupTyped(const FString& Path, EJson Expected, const TCHAR* TypeName);
 	int64 AddListener(const FString& Path, FGamebeastConfigValueCallback Callback, bool bIncludeInitial);
 
 	FString CacheFileName(const FString& Alias) const;
@@ -151,4 +159,8 @@ private:
 	TMap<FString, FString> SnapshotFingerprints;
 	TSet<FString> SnapshotWithUserExperiments;
 	bool bHaveSnapshot = false;
+
+	/** Warnings already logged, so per-frame reads don't flood the log. Aliases / paths. */
+	TSet<FString> WarnedNotLoaded;
+	TSet<FString> WarnedTypeMismatch;
 };
