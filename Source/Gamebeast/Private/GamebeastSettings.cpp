@@ -12,7 +12,6 @@ FGamebeastSetupOptions UGamebeastSettings::ToSetupOptions() const
 	FGamebeastSetupOptions Options;
 	Options.ApiKey = ApiKey;
 	Options.Environment = Environment;
-	Options.CustomEnvironment = CustomEnvironment;
 	Options.Configurations = Configurations;
 	Options.Rates = Rates;
 	Options.bFastRatesInEditor = bFastRatesInEditor;

@@ -91,12 +91,19 @@ bool UGamebeastSubsystem::SetupWithOptions(const FGamebeastSetupOptions& Options
 
 	Gamebeast::Private::GDebugLogging = Options.bDebugLogging;
 
+	FString EnvironmentAlias;
+	if (!Gamebeast::Environment::Resolve(Options.Environment, GIsEditor, EnvironmentAlias))
+	{
+		GB_ERROR(TEXT("Environment '%s' is not a valid environment alias. Use the alias from your dashboard, or leave it empty to choose automatically."),
+			*Options.Environment);
+		return false;
+	}
+
 	const TSharedRef<FGamebeastContext> NewContext = MakeShared<FGamebeastContext>();
 	NewContext->Options = Options;
 	NewContext->Options.ApiKey = ApiKey;
 	NewContext->Rates = Gamebeast::Rates::Resolve(Options, GIsEditor);
-	NewContext->EnvironmentAlias =
-		Gamebeast::Environment::Resolve(Options.Environment, Options.CustomEnvironment, GIsEditor);
+	NewContext->EnvironmentAlias = EnvironmentAlias;
 	NewContext->AnonymousId = FGamebeastContext::LoadOrCreateAnonymousId();
 	const FString SuppliedId = Options.DistinctId.TrimStartAndEnd();
 	if (SuppliedId.Len() > MaxDistinctIdLength)

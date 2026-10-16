@@ -71,11 +71,22 @@ bool FGamebeastEnvironmentTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("slug: collapses dashes"), ToAliasSlug(TEXT("a -- b")), FString(TEXT("a-b")));
 	TestEqual(TEXT("slug: nothing left"), ToAliasSlug(TEXT("!!!")), FString());
 
-	TestEqual(TEXT("Auto in editor"), Resolve(EGamebeastEnvironment::Auto, FString(), true), Development);
-	TestEqual(TEXT("Auto in a build"), Resolve(EGamebeastEnvironment::Auto, FString(), false), Production);
-	TestEqual(TEXT("explicit production"), Resolve(EGamebeastEnvironment::Production, FString(), true), Production);
-	TestEqual(TEXT("custom overrides"), Resolve(EGamebeastEnvironment::Production, TEXT("Staging"), false), FString(TEXT("staging")));
-	TestEqual(TEXT("studio is development"), Resolve(EGamebeastEnvironment::Production, TEXT("studio"), false), Development);
+	const auto ResolveTo = [](const FString& Environment, bool bIsEditor)
+	{
+		FString Alias;
+		Resolve(Environment, bIsEditor, Alias);
+		return Alias;
+	};
+	TestEqual(TEXT("empty in editor"), ResolveTo(FString(), true), Development);
+	TestEqual(TEXT("empty in a build"), ResolveTo(FString(), false), Production);
+	TestEqual(TEXT("whitespace is empty"), ResolveTo(TEXT("  "), false), Production);
+	TestEqual(TEXT("explicit production in editor"), ResolveTo(TEXT("production"), true), Production);
+	TestEqual(TEXT("explicit development in a build"), ResolveTo(TEXT("Development"), false), Development);
+	TestEqual(TEXT("custom alias normalized"), ResolveTo(TEXT("Staging"), false), FString(TEXT("staging")));
+	TestEqual(TEXT("studio is development"), ResolveTo(TEXT("studio"), false), Development);
+	FString Invalid;
+	TestFalse(TEXT("unusable alias rejected"), Resolve(TEXT("!!!"), false, Invalid));
+	TestTrue(TEXT("rejected alias is empty"), Invalid.IsEmpty());
 
 	// The Unity SDK sent isstudio=false for development, so its development markers landed in
 	// production. Development must be true.

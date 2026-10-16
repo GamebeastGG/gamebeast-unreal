@@ -33,24 +33,21 @@ namespace Gamebeast::Environment
 		return Result;
 	}
 
-	FString Resolve(EGamebeastEnvironment Environment, const FString& CustomEnvironment, bool bIsEditor)
+	bool Resolve(const FString& Environment, bool bIsEditor, FString& OutAlias)
 	{
-		const FString Custom = ToAliasSlug(CustomEnvironment);
-		if (!Custom.IsEmpty())
+		OutAlias.Reset();
+		if (Environment.TrimStartAndEnd().IsEmpty())
 		{
-			return Custom == TEXT("studio") ? Development : Custom;
+			OutAlias = bIsEditor ? Development : Production;
+			return true;
 		}
-
-		switch (Environment)
+		const FString Alias = ToAliasSlug(Environment);
+		if (Alias.IsEmpty())
 		{
-		case EGamebeastEnvironment::Production:
-			return Production;
-		case EGamebeastEnvironment::Development:
-			return Development;
-		case EGamebeastEnvironment::Auto:
-		default:
-			return bIsEditor ? Development : Production;
+			return false;
 		}
+		OutAlias = Alias == TEXT("studio") ? Development : Alias;
+		return true;
 	}
 
 	bool ToLegacyIsStudio(const FString& Alias, bool& bSupported)
