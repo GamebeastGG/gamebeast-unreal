@@ -1,4 +1,4 @@
-// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Gamebeast Inc. All Rights Reserved. Licensed under the Gamebeast Community License; see LICENSE.
 
 #include "GamebeastPropertiesLibrary.h"
 

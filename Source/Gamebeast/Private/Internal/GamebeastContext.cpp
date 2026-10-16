@@ -1,12 +1,15 @@
-// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Gamebeast Inc. All Rights Reserved. Licensed under the Gamebeast Community License; see LICENSE.
 
 #include "Internal/GamebeastContext.h"
 
 #include "GeneralProjectSettings.h"
 #include "Internal/GamebeastJson.h"
 #include "Internal/GamebeastLog.h"
-#include "Internal/GamebeastPlatformFacts.h"
 #include "Internal/GamebeastStorage.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/App.h"
+#include "HAL/PlatformMisc.h"
+#include "Internationalization/Internationalization.h"
 
 namespace
 {
@@ -53,24 +56,16 @@ namespace
 	}
 }
 
-TSharedRef<FJsonObject> FGamebeastContext::BuildEvaluationContext() const
-{
-	const TSharedRef<FJsonObject> Context = MakeShared<FJsonObject>();
-	Context->SetNumberField(TEXT("schemaVersion"), 1);
-	// Built-in targeting fields. The backend rejects unknown keys here, so only registered ones.
-	Context->SetObjectField(TEXT("unreal"), Gamebeast::PlatformFacts::Collect());
-
-	const TSharedRef<FJsonObject> Properties = BuildCustomProperties();
-	if (Properties->Values.Num() > 0)
-	{
-		Context->SetObjectField(TEXT("properties"), Properties);
-	}
-	return Context;
-}
-
-TSharedRef<FJsonObject> FGamebeastContext::BuildCustomProperties() const
+TSharedRef<FJsonObject> FGamebeastContext::BuildEvaluationProperties() const
 {
 	const TSharedRef<FJsonObject> Properties = MakeShared<FJsonObject>();
+	Properties->SetStringField(TEXT("platform"), UGameplayStatics::GetPlatformName());
+	Properties->SetStringField(TEXT("operatingSystem"), FPlatformMisc::GetOSVersion());
+	Properties->SetStringField(TEXT("deviceModel"), FPlatformMisc::GetDeviceMakeAndModel());
+	Properties->SetStringField(TEXT("systemLanguage"), FInternationalization::Get().GetCurrentCulture()->GetName());
+	Properties->SetStringField(TEXT("appVersion"), AppVersion());
+	Properties->SetStringField(TEXT("engineVersion"), FApp::GetBuildVersion());
+
 	const TSharedRef<FJsonObject> Custom = Options.UserProperties.ToJson();
 	for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Custom->Values)
 	{
@@ -85,7 +80,7 @@ TSharedRef<FJsonObject> FGamebeastContext::BuildCustomProperties() const
 				*Pair.Key);
 			continue;
 		}
-		if (Properties->Values.Num() >= MaxContextProperties)
+		if (!Properties->HasField(Pair.Key) && Properties->Values.Num() >= MaxContextProperties)
 		{
 			GB_WARN(TEXT("User property '%s' skipped: at most %d properties are sent."), *Pair.Key, MaxContextProperties);
 			continue;

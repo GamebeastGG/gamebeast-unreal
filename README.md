@@ -120,7 +120,8 @@ Results are cached for a minute; membership is recomputed by the backend, so tre
 | --- | --- | --- |
 | `ApiKey` | none | Required SDK Key. |
 | `DistinctId` | auto | Code only. The local user's id; omit for an anonymous, persisted one. |
-| `Environment` | empty (automatic) | `production` or `development`. Empty is development in the editor (including PIE) and production in packaged builds. Other values log a warning and are treated as empty. |
+| `Environment` | `Auto` | `Production` / `Development`. `Auto` is Development in the editor (including PIE) and Production in packaged builds. |
+| `CustomEnvironment` | none | Target an environment by its dashboard alias; overrides `Environment`. |
 | `Configurations` | none | Configurations to preload and gate `OnReady` on. Others load on first use. |
 | `UserProperties` | none | Code only. Custom targeting properties. |
 | `Rates.MarkerFlushRate` | `30` | Seconds between marker sends. At least 5. |
@@ -157,3 +158,7 @@ UnrealEditor-Cmd <YourProject>.uproject -ExecCmds="Automation RunTests Gamebeast
 `VersionName` in `Gamebeast.uplugin` and `GAMEBEAST_SDK_VERSION` in `Source/Gamebeast/Public/Gamebeast.h` must match (CI checks it). The SDK reports itself as `gamebeast-unreal/<version>`.
 
 Please visit https://docs.gamebeast.gg/ for more details.
+
+## License
+
+Gamebeast Software is licensed under the [Gamebeast Community License](LICENSE), Copyright © Gamebeast Inc. All Rights Reserved.

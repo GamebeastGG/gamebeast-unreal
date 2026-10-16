@@ -1,4 +1,4 @@
-// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Gamebeast Inc. All Rights Reserved. Licensed under the Gamebeast Community License; see LICENSE.
 
 #pragma once
 
@@ -43,13 +43,14 @@ public:
 	FString ApiKey;
 
 	/**
-	 * "production" or "development". Empty chooses automatically: development in the editor
-	 * (including Play In Editor), production in packaged builds. Any other value logs a warning
-	 * and is treated as empty.
-	 * TODO(post-release): custom environments (project-defined aliases such as "staging").
+	 * TODO(post-release): custom environments. Copied from the Unity SDK for now: Auto,
+	 * Production or Development, with CustomEnvironment as an alias override.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
-	FString Environment;
+	EGamebeastEnvironment Environment = EGamebeastEnvironment::Auto;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
+	FString CustomEnvironment;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
 	TArray<FString> Configurations;

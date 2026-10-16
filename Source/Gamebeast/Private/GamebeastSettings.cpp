@@ -1,4 +1,4 @@
-// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Gamebeast Inc. All Rights Reserved. Licensed under the Gamebeast Community License; see LICENSE.
 
 #include "GamebeastSettings.h"
 
@@ -12,6 +12,7 @@ FGamebeastSetupOptions UGamebeastSettings::ToSetupOptions() const
 	FGamebeastSetupOptions Options;
 	Options.ApiKey = ApiKey;
 	Options.Environment = Environment;
+	Options.CustomEnvironment = CustomEnvironment;
 	Options.Configurations = Configurations;
 	Options.Rates = Rates;
 	Options.bFastRatesInEditor = bFastRatesInEditor;

@@ -1,4 +1,4 @@
-// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Gamebeast Inc. All Rights Reserved. Licensed under the Gamebeast Community License; see LICENSE.
 
 #include "GamebeastSubsystem.h"
 
@@ -91,20 +91,12 @@ bool UGamebeastSubsystem::SetupWithOptions(const FGamebeastSetupOptions& Options
 
 	Gamebeast::Private::GDebugLogging = Options.bDebugLogging;
 
-	bool bUnsupportedEnvironment = false;
-	const FString EnvironmentAlias =
-		Gamebeast::Environment::Resolve(Options.Environment, GIsEditor, bUnsupportedEnvironment);
-	if (bUnsupportedEnvironment)
-	{
-		GB_WARN(TEXT("Environment '%s' is not supported yet: use \"production\", \"development\", or leave it empty. Using '%s'."),
-			*Options.Environment, *EnvironmentAlias);
-	}
-
 	const TSharedRef<FGamebeastContext> NewContext = MakeShared<FGamebeastContext>();
 	NewContext->Options = Options;
 	NewContext->Options.ApiKey = ApiKey;
 	NewContext->Rates = Gamebeast::Rates::Resolve(Options, GIsEditor);
-	NewContext->EnvironmentAlias = EnvironmentAlias;
+	NewContext->EnvironmentAlias =
+		Gamebeast::Environment::Resolve(Options.Environment, Options.CustomEnvironment, GIsEditor);
 	NewContext->AnonymousId = FGamebeastContext::LoadOrCreateAnonymousId();
 	const FString SuppliedId = Options.DistinctId.TrimStartAndEnd();
 	if (SuppliedId.Len() > MaxDistinctIdLength)

@@ -1,4 +1,4 @@
-// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Gamebeast Inc. All Rights Reserved. Licensed under the Gamebeast Community License; see LICENSE.
 
 #pragma once
 
@@ -9,13 +9,11 @@
  * Environment aliases, normalized the way the backend does (`toAliasSlug` in
  * @gamebeast/sdk-contract, plus the `studio` synonym).
  *
- * One setting: an alias, or empty for automatic. Only production and development exist today;
- * any other value is warned about and treated as empty.
- *
- * TODO(post-release): custom environments. When projects can define their own (e.g. `staging`),
- * let Resolve pass other aliases through. v2 routes already take any alias, but the v1 routes
- * (markers, cohorts) can only address production and development through `isstudio`, so other
- * environments also need a v1 header change or v2 marker/cohort routes to work end to end.
+ * TODO(post-release): custom environments. This copies the Unity SDK's model (Auto / Production
+ * / Development plus a CustomEnvironment alias). When the backend ships project-defined
+ * environments, revisit: v2 routes already take any alias, but the v1 routes (markers, cohorts)
+ * can only address production and development through `isstudio`, so custom environments need a
+ * v1 header change or v2 marker/cohort routes before they work end to end.
  */
 namespace Gamebeast::Environment
 {
@@ -25,12 +23,8 @@ namespace Gamebeast::Environment
 	/** Lowercase, whitespace to `-`, strip non `[a-z0-9-]`, collapse and trim dashes. */
 	FString ToAliasSlug(const FString& Value);
 
-	/**
-	 * The alias the SDK sends: production or development. Empty (or whitespace) is automatic:
-	 * development when bIsEditor, else production. `studio` is development. Any other value is
-	 * unsupported for now: bOutUnsupported is set and the automatic alias is returned.
-	 */
-	FString Resolve(const FString& Environment, bool bIsEditor, bool& bOutUnsupported);
+	/** The alias the SDK sends. `bIsEditor` decides what Auto means (development in the editor). */
+	FString Resolve(EGamebeastEnvironment Environment, const FString& CustomEnvironment, bool bIsEditor);
 
 	/**
 	 * `isstudio` for the v1 routes: production is false, development is true. Any other alias

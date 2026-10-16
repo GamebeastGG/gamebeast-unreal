@@ -1,4 +1,4 @@
-// Copyright Gamebeast. Licensed under the Apache License, Version 2.0.
+// Copyright (c) Gamebeast Inc. All Rights Reserved. Licensed under the Gamebeast Community License; see LICENSE.
 
 #include "Internal/GamebeastEnvironment.h"
 
@@ -33,26 +33,24 @@ namespace Gamebeast::Environment
 		return Result;
 	}
 
-	FString Resolve(const FString& Environment, bool bIsEditor, bool& bOutUnsupported)
+	FString Resolve(EGamebeastEnvironment Environment, const FString& CustomEnvironment, bool bIsEditor)
 	{
-		bOutUnsupported = false;
-		const FString Automatic = bIsEditor ? Development : Production;
-		if (Environment.TrimStartAndEnd().IsEmpty())
+		const FString Custom = ToAliasSlug(CustomEnvironment);
+		if (!Custom.IsEmpty())
 		{
-			return Automatic;
+			return Custom == TEXT("studio") ? Development : Custom;
 		}
-		const FString Alias = ToAliasSlug(Environment);
-		if (Alias == Production)
+
+		switch (Environment)
 		{
+		case EGamebeastEnvironment::Production:
 			return Production;
-		}
-		if (Alias == Development || Alias == TEXT("studio"))
-		{
+		case EGamebeastEnvironment::Development:
 			return Development;
+		case EGamebeastEnvironment::Auto:
+		default:
+			return bIsEditor ? Development : Production;
 		}
-		// TODO(post-release): custom environments. Pass other aliases through once they exist.
-		bOutUnsupported = true;
-		return Automatic;
 	}
 
 	bool ToLegacyIsStudio(const FString& Alias, bool& bSupported)
