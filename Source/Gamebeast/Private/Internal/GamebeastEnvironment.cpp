@@ -33,21 +33,26 @@ namespace Gamebeast::Environment
 		return Result;
 	}
 
-	bool Resolve(const FString& Environment, bool bIsEditor, FString& OutAlias)
+	FString Resolve(const FString& Environment, bool bIsEditor, bool& bOutUnsupported)
 	{
-		OutAlias.Reset();
+		bOutUnsupported = false;
+		const FString Automatic = bIsEditor ? Development : Production;
 		if (Environment.TrimStartAndEnd().IsEmpty())
 		{
-			OutAlias = bIsEditor ? Development : Production;
-			return true;
+			return Automatic;
 		}
 		const FString Alias = ToAliasSlug(Environment);
-		if (Alias.IsEmpty())
+		if (Alias == Production)
 		{
-			return false;
+			return Production;
 		}
-		OutAlias = Alias == TEXT("studio") ? Development : Alias;
-		return true;
+		if (Alias == Development || Alias == TEXT("studio"))
+		{
+			return Development;
+		}
+		// TODO(post-release): custom environments. Pass other aliases through once they exist.
+		bOutUnsupported = true;
+		return Automatic;
 	}
 
 	bool ToLegacyIsStudio(const FString& Alias, bool& bSupported)

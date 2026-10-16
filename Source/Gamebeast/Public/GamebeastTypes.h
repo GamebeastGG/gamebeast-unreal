@@ -128,9 +128,10 @@ struct GAMEBEAST_API FGamebeastSetupOptions
 	FString DistinctId;
 
 	/**
-	 * The environment to report to, by its dashboard alias ("production", "development",
-	 * "staging", ...). Leave empty to choose automatically: development in the editor (including
-	 * Play In Editor), production in packaged builds.
+	 * "production" or "development". Leave empty to choose automatically: development in the
+	 * editor (including Play In Editor), production in packaged builds. Any other value logs a
+	 * warning and is treated as empty.
+	 * TODO(post-release): custom environments (project-defined aliases such as "staging").
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
 	FString Environment;

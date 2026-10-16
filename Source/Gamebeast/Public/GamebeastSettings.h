@@ -43,9 +43,10 @@ public:
 	FString ApiKey;
 
 	/**
-	 * The environment's dashboard alias ("production", "development", "staging", ...). Empty
-	 * chooses automatically: development in the editor (including Play In Editor), production in
-	 * packaged builds.
+	 * "production" or "development". Empty chooses automatically: development in the editor
+	 * (including Play In Editor), production in packaged builds. Any other value logs a warning
+	 * and is treated as empty.
+	 * TODO(post-release): custom environments (project-defined aliases such as "staging").
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
 	FString Environment;

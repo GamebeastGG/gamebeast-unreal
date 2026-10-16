@@ -9,12 +9,13 @@
  * Environment aliases, normalized the way the backend does (`toAliasSlug` in
  * @gamebeast/sdk-contract, plus the `studio` synonym).
  *
- * One setting: an alias, or empty for automatic. The set of environments is data, not an enum,
- * since projects may define their own (e.g. `staging`).
+ * One setting: an alias, or empty for automatic. Only production and development exist today;
+ * any other value is warned about and treated as empty.
  *
- * TODO(post-release): custom environments. v2 routes already take any alias, but the v1 routes
+ * TODO(post-release): custom environments. When projects can define their own (e.g. `staging`),
+ * let Resolve pass other aliases through. v2 routes already take any alias, but the v1 routes
  * (markers, cohorts) can only address production and development through `isstudio`, so other
- * environments need a v1 header change or v2 marker/cohort routes before they work end to end.
+ * environments also need a v1 header change or v2 marker/cohort routes to work end to end.
  */
 namespace Gamebeast::Environment
 {
@@ -25,11 +26,11 @@ namespace Gamebeast::Environment
 	FString ToAliasSlug(const FString& Value);
 
 	/**
-	 * The alias the SDK sends. Empty (or whitespace) Environment is automatic: development when
-	 * bIsEditor, else production. Otherwise the normalized alias (`studio` is development). False,
-	 * with OutAlias empty, when a non-empty Environment normalizes to nothing (e.g. "!!!").
+	 * The alias the SDK sends: production or development. Empty (or whitespace) is automatic:
+	 * development when bIsEditor, else production. `studio` is development. Any other value is
+	 * unsupported for now: bOutUnsupported is set and the automatic alias is returned.
 	 */
-	bool Resolve(const FString& Environment, bool bIsEditor, FString& OutAlias);
+	FString Resolve(const FString& Environment, bool bIsEditor, bool& bOutUnsupported);
 
 	/**
 	 * `isstudio` for the v1 routes: production is false, development is true. Any other alias

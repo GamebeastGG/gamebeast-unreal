@@ -91,12 +91,13 @@ bool UGamebeastSubsystem::SetupWithOptions(const FGamebeastSetupOptions& Options
 
 	Gamebeast::Private::GDebugLogging = Options.bDebugLogging;
 
-	FString EnvironmentAlias;
-	if (!Gamebeast::Environment::Resolve(Options.Environment, GIsEditor, EnvironmentAlias))
+	bool bUnsupportedEnvironment = false;
+	const FString EnvironmentAlias =
+		Gamebeast::Environment::Resolve(Options.Environment, GIsEditor, bUnsupportedEnvironment);
+	if (bUnsupportedEnvironment)
 	{
-		GB_ERROR(TEXT("Environment '%s' is not a valid environment alias. Use the alias from your dashboard, or leave it empty to choose automatically."),
-			*Options.Environment);
-		return false;
+		GB_WARN(TEXT("Environment '%s' is not supported yet: use \"production\", \"development\", or leave it empty. Using '%s'."),
+			*Options.Environment, *EnvironmentAlias);
 	}
 
 	const TSharedRef<FGamebeastContext> NewContext = MakeShared<FGamebeastContext>();

@@ -120,7 +120,7 @@ Results are cached for a minute; membership is recomputed by the backend, so tre
 | --- | --- | --- |
 | `ApiKey` | none | Required SDK Key. |
 | `DistinctId` | auto | Code only. The local user's id; omit for an anonymous, persisted one. |
-| `Environment` | empty (automatic) | The environment's dashboard alias (`production`, `development`, `staging`, ...). Empty is development in the editor (including PIE) and production in packaged builds. |
+| `Environment` | empty (automatic) | `production` or `development`. Empty is development in the editor (including PIE) and production in packaged builds. Other values log a warning and are treated as empty. |
 | `Configurations` | none | Configurations to preload and gate `OnReady` on. Others load on first use. |
 | `UserProperties` | none | Code only. Custom targeting properties. |
 | `Rates.MarkerFlushRate` | `30` | Seconds between marker sends. At least 5. |
