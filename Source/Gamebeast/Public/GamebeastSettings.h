@@ -43,14 +43,13 @@ public:
 	FString ApiKey;
 
 	/**
-	 * TODO(post-release): custom environments. Copied from the Unity SDK for now: Auto,
-	 * Production or Development, with CustomEnvironment as an alias override.
+	 * "production" or "development". Empty chooses automatically: development in the editor
+	 * (including Play In Editor), production in packaged builds. Any other value logs a warning
+	 * and is treated as empty.
+	 * TODO(post-release): custom environments (project-defined aliases such as "staging").
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
-	EGamebeastEnvironment Environment = EGamebeastEnvironment::Auto;
-
-	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
-	FString CustomEnvironment;
+	FString Environment;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Gamebeast")
 	TArray<FString> Configurations;

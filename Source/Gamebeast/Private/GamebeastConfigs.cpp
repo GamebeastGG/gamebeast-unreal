@@ -60,6 +60,8 @@ void UGamebeastConfigs::Stop()
 	ReadyCallbacks.Reset();
 	SnapshotFingerprints.Reset();
 	SnapshotWithUserExperiments.Reset();
+	WarnedNotLoaded.Reset();
+	WarnedTypeMismatch.Reset();
 	bHaveSnapshot = false;
 	bReady = false;
 	SecondsSinceAssignmentRefresh = 0.f;
@@ -441,15 +443,34 @@ TSharedPtr<FJsonValue> UGamebeastConfigs::Lookup(const FString& Path, bool bLogM
 	const FConfigState* State = EnsureConfig(Alias, /*bRequiredForReady*/ false);
 	if (State == nullptr || !State->bLoaded)
 	{
-		if (bLogMissing)
+		// Once per configuration: a value read every frame would otherwise flood the log.
+		if (bLogMissing && !WarnedNotLoaded.Contains(Alias))
 		{
-			GB_WARN(TEXT("Configuration '%s' has not loaded yet; returning the default. Use Observe or OnReady to wait for it."),
+			WarnedNotLoaded.Add(Alias);
+			GB_WARN(TEXT("Configuration '%s' has not loaded yet; returning defaults. Use Observe or OnReady to wait for it."),
 				*Alias);
 		}
 		return nullptr;
 	}
 	const TSharedPtr<FJsonValue> Value = Gamebeast::Json::Resolve(State->Values, Segments);
 	return Value.IsValid() && Value->Type != EJson::Null ? Value : nullptr;
+}
+
+TSharedPtr<FJsonValue> UGamebeastConfigs::LookupTyped(const FString& Path, EJson Expected, const TCHAR* TypeName)
+{
+	const TSharedPtr<FJsonValue> Value = Lookup(Path, /*bLogMissing*/ true);
+	if (!Value.IsValid() || Value->Type == Expected)
+	{
+		return Value;
+	}
+	// The default is both a fallback and a type check, as in the other SDKs. Once per path.
+	if (!WarnedTypeMismatch.Contains(Path))
+	{
+		WarnedTypeMismatch.Add(Path);
+		GB_WARN(TEXT("'%s' is not a %s (it is %s); returning the default."), *Path, TypeName,
+			*Gamebeast::Json::SerializeValue(Value).Left(80));
+	}
+	return nullptr;
 }
 
 bool UGamebeastConfigs::HasValue(const FString& Path)
@@ -464,36 +485,30 @@ TSharedPtr<FJsonValue> UGamebeastConfigs::GetJson(const FString& Path)
 
 FString UGamebeastConfigs::GetString(const FString& Path, const FString& DefaultValue)
 {
-	const TSharedPtr<FJsonValue> Value = Lookup(Path, true);
+	const TSharedPtr<FJsonValue> Value = LookupTyped(Path, EJson::String, TEXT("string"));
 	FString Result;
-	return Value.IsValid() && Value->Type == EJson::String && Value->TryGetString(Result) ? Result : DefaultValue;
+	return Value.IsValid() && Value->TryGetString(Result) ? Result : DefaultValue;
 }
 
 int32 UGamebeastConfigs::GetInt(const FString& Path, int32 DefaultValue)
 {
-	const TSharedPtr<FJsonValue> Value = Lookup(Path, true);
+	const TSharedPtr<FJsonValue> Value = LookupTyped(Path, EJson::Number, TEXT("number"));
 	double Number = 0.0;
-	if (!Value.IsValid() || Value->Type != EJson::Number || !Value->TryGetNumber(Number))
-	{
-		return DefaultValue;
-	}
-	return static_cast<int32>(FMath::RoundToInt(Number));
+	return Value.IsValid() && Value->TryGetNumber(Number) ? static_cast<int32>(FMath::RoundToInt(Number)) : DefaultValue;
 }
 
 float UGamebeastConfigs::GetFloat(const FString& Path, float DefaultValue)
 {
-	const TSharedPtr<FJsonValue> Value = Lookup(Path, true);
+	const TSharedPtr<FJsonValue> Value = LookupTyped(Path, EJson::Number, TEXT("number"));
 	double Number = 0.0;
-	return Value.IsValid() && Value->Type == EJson::Number && Value->TryGetNumber(Number)
-		? static_cast<float>(Number)
-		: DefaultValue;
+	return Value.IsValid() && Value->TryGetNumber(Number) ? static_cast<float>(Number) : DefaultValue;
 }
 
 bool UGamebeastConfigs::GetBool(const FString& Path, bool DefaultValue)
 {
-	const TSharedPtr<FJsonValue> Value = Lookup(Path, true);
+	const TSharedPtr<FJsonValue> Value = LookupTyped(Path, EJson::Boolean, TEXT("boolean"));
 	bool bResult = false;
-	return Value.IsValid() && Value->Type == EJson::Boolean && Value->TryGetBool(bResult) ? bResult : DefaultValue;
+	return Value.IsValid() && Value->TryGetBool(bResult) ? bResult : DefaultValue;
 }
 
 FString UGamebeastConfigs::GetJsonString(const FString& Path, const FString& DefaultValue)

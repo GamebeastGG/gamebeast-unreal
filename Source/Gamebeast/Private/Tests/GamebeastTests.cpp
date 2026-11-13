@@ -71,11 +71,20 @@ bool FGamebeastEnvironmentTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("slug: collapses dashes"), ToAliasSlug(TEXT("a -- b")), FString(TEXT("a-b")));
 	TestEqual(TEXT("slug: nothing left"), ToAliasSlug(TEXT("!!!")), FString());
 
-	TestEqual(TEXT("Auto in editor"), Resolve(EGamebeastEnvironment::Auto, FString(), true), Development);
-	TestEqual(TEXT("Auto in a build"), Resolve(EGamebeastEnvironment::Auto, FString(), false), Production);
-	TestEqual(TEXT("explicit production"), Resolve(EGamebeastEnvironment::Production, FString(), true), Production);
-	TestEqual(TEXT("custom overrides"), Resolve(EGamebeastEnvironment::Production, TEXT("Staging"), false), FString(TEXT("staging")));
-	TestEqual(TEXT("studio is development"), Resolve(EGamebeastEnvironment::Production, TEXT("studio"), false), Development);
+	bool bUnsupported = false;
+	TestEqual(TEXT("empty in editor"), Resolve(FString(), true, bUnsupported), Development);
+	TestFalse(TEXT("empty is supported"), bUnsupported);
+	TestEqual(TEXT("empty in a build"), Resolve(FString(), false, bUnsupported), Production);
+	TestEqual(TEXT("whitespace is empty"), Resolve(TEXT("  "), false, bUnsupported), Production);
+	TestEqual(TEXT("explicit production in editor"), Resolve(TEXT("production"), true, bUnsupported), Production);
+	TestEqual(TEXT("explicit development in a build"), Resolve(TEXT("Development"), false, bUnsupported), Development);
+	TestFalse(TEXT("development is supported"), bUnsupported);
+	TestEqual(TEXT("studio is development"), Resolve(TEXT("studio"), false, bUnsupported), Development);
+	TestEqual(TEXT("custom falls back in a build"), Resolve(TEXT("Staging"), false, bUnsupported), Production);
+	TestTrue(TEXT("custom is unsupported"), bUnsupported);
+	TestEqual(TEXT("custom falls back in editor"), Resolve(TEXT("staging"), true, bUnsupported), Development);
+	TestEqual(TEXT("junk falls back"), Resolve(TEXT("!!!"), false, bUnsupported), Production);
+	TestTrue(TEXT("junk is unsupported"), bUnsupported);
 
 	// The Unity SDK sent isstudio=false for development, so its development markers landed in
 	// production. Development must be true.
