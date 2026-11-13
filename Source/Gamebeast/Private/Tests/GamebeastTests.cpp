@@ -167,7 +167,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGamebeastMarkerQueueTest, "Gamebeast.MarkerQue
 bool FGamebeastMarkerQueueTest::RunTest(const FString& Parameters)
 {
 	// Dropped batches are logged as errors on purpose.
-	AddExpectedError(TEXT("Dropped"), EAutomationExpectedErrorFlags::Contains, 0);
+	// Expected patterns match case-insensitively, so a bare "Dropped" would also swallow
+	// "Marker buffer full; dropped N oldest marker(s)." and starve the expectation below.
+	AddExpectedError(TEXT("Dropped \\d+ marker"), EAutomationExpectedErrorFlags::Contains, 0);
 	AddExpectedError(TEXT("Marker buffer full"), EAutomationExpectedErrorFlags::Contains, 0);
 
 	FGamebeastMarkerQueue::FOptions Options;
