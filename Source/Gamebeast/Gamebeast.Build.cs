@@ -20,6 +20,8 @@ public class Gamebeast : ModuleRules
 		{
 			"HTTP",
 			"JsonUtilities",
+			// UGeneralProjectSettings (project version, stamped on caches).
+			"EngineSettings",
 		});
 	}
 }

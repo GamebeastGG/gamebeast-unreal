@@ -9,22 +9,6 @@
 #include "GamebeastTypes.generated.h"
 
 /**
- * Which Gamebeast environment the SDK talks to.
- *
- * TODO(post-release): custom environments. The backend is about to support project-defined
- * environments beyond production/development. Until then this mirrors the Unity SDK: two fixed
- * values plus FGamebeastSetupOptions::CustomEnvironment as a free-form alias override.
- */
-UENUM(BlueprintType)
-enum class EGamebeastEnvironment : uint8
-{
-	/** Development in the editor (including Play In Editor), Production in packaged builds. */
-	Auto,
-	Production,
-	Development,
-};
-
-/**
  * A JSON object of marker or targeting properties.
  *
  * C++ builds it fluently:
@@ -143,15 +127,14 @@ struct GAMEBEAST_API FGamebeastSetupOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
 	FString DistinctId;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
-	EGamebeastEnvironment Environment = EGamebeastEnvironment::Auto;
-
 	/**
-	 * Target an environment by its dashboard alias (e.g. "staging"). Overrides Environment.
-	 * TODO(post-release): revisit when custom environments ship on the backend.
+	 * "production" or "development". Leave empty to choose automatically: development in the
+	 * editor (including Play In Editor), production in packaged builds. Any other value logs a
+	 * warning and is treated as empty.
+	 * TODO(post-release): custom environments (project-defined aliases such as "staging").
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
-	FString CustomEnvironment;
+	FString Environment;
 
 	/** Configurations to preload at startup; IsReady/OnReady wait for these. Others load on first use. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamebeast")
