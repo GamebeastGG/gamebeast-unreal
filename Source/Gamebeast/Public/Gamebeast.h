@@ -5,7 +5,7 @@
 #include "Modules/ModuleManager.h"
 
 /** SDK version, sent as `sdkversion: gamebeast-unreal/<version>`. Keep in step with Gamebeast.uplugin. */
-#define GAMEBEAST_SDK_VERSION TEXT("0.1.0")
+#define GAMEBEAST_SDK_VERSION TEXT("0.1.1")
 #define GAMEBEAST_SDK_NAME TEXT("gamebeast-unreal")
 
 class FGamebeastModule : public IModuleInterface

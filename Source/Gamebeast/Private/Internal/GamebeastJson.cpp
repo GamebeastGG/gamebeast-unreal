@@ -103,10 +103,10 @@ namespace Gamebeast::Json
 			{
 				return false;
 			}
-			for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : ObjectA->Values)
+			for (const auto& Pair : ObjectA->Values)
 			{
-				const TSharedPtr<FJsonValue>* Other = ObjectB->Values.Find(Pair.Key);
-				if (Other == nullptr || !DeepEquals(Pair.Value, *Other))
+				const FString Key = KeyToString(Pair.Key);
+				if (!ObjectB->HasField(Key) || !DeepEquals(Pair.Value, ObjectB->TryGetField(Key)))
 				{
 					return false;
 				}
@@ -170,8 +170,7 @@ namespace Gamebeast::Json
 			}
 			if (Current->Type == EJson::Object)
 			{
-				const TSharedPtr<FJsonValue>* Next = Current->AsObject()->Values.Find(Segment);
-				Current = Next != nullptr ? *Next : nullptr;
+				Current = Current->AsObject()->TryGetField(Segment);
 				continue;
 			}
 			if (Current->Type == EJson::Array && IsArrayIndex(Segment))

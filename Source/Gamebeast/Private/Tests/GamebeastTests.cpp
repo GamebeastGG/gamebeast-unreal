@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/EngineVersionComparison.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -13,8 +14,13 @@
 #include "Internal/GamebeastRates.h"
 #include "Internal/GamebeastStatusPoller.h"
 
-// EAutomationTestFlags is a namespace before UE 5.5 and an enum class after; a macro fits both.
+// EAutomationTestFlags is a namespace before UE 5.5. From 5.5 it is an enum class, and the context
+// mask is the separate constant EAutomationTestFlags_ApplicationContextMask.
+#if UE_VERSION_OLDER_THAN(5, 5, 0)
 #define GAMEBEAST_TEST_FLAGS (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+#else
+#define GAMEBEAST_TEST_FLAGS (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+#endif
 
 namespace
 {
@@ -296,7 +302,10 @@ bool FGamebeastPlatformFactsTest::RunTest(const FString& Parameters)
 	// Only registered keys: the backend rejects anything else in the namespace.
 	const TSharedRef<FJsonObject> Facts = Collect();
 	TArray<FString> Keys;
-	Facts->Values.GetKeys(Keys);
+	for (const auto& Pair : Facts->Values)
+	{
+		Keys.Add(Gamebeast::Json::KeyToString(Pair.Key));
+	}
 	Keys.Sort();
 	TestEqual(TEXT("Namespace keys"), FString::Join(Keys, TEXT(",")),
 		FString(TEXT("appVersion,country,device,engineVersion,language,platform")));

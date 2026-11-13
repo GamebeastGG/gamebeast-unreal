@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Builds on Unreal Engine 5.8 and 5.9. 5.8 keys `FJsonObject` fields by `UE::FSharedString` instead of `FString`, so the SDK no longer copies keys straight into `FString`s or looks them up with `Values.Find`. The same source still builds on 5.3 through 5.7.
+- The automation tests compile on UE 5.5 and later, which renamed the test context mask to `EAutomationTestFlags_ApplicationContextMask`.
+- Restores code the license change in 0.1.0 accidentally rolled back. Without it the plugin didn't compile on any engine: the built-in `unreal` targeting fields, the single `Environment` setting, logging config fallbacks once, and the `EngineSettings` module dependency.
+
 ## 0.1.0
 
 First release.

@@ -33,3 +33,9 @@ jobs:
         run: |
           missing=$(grep -L '#pragma once' $(find Source -name '*.h') || true)
           if [ -n "$missing" ]; then echo "Missing #pragma once:"; echo "$missing"; exit 1; fi
+
+      # UE 5.8 keys FJsonObject::Values by UE::FSharedString, not FString, so these don't compile there.
+      - name: FJsonObject keys go through KeyToString
+        run: |
+          hits=$(grep -rnE 'TPair<FString, *TSharedPtr<FJsonValue>>|Values\.(Find|FindRef|GetKeys|Contains)\(' Source || true)
+          if [ -n "$hits" ]; then echo "Use Gamebeast::Json::KeyToString and HasField/TryGetField instead:"; echo "$hits"; exit 1; fi

@@ -72,25 +72,26 @@ TSharedRef<FJsonObject> FGamebeastContext::BuildCustomProperties() const
 {
 	const TSharedRef<FJsonObject> Properties = MakeShared<FJsonObject>();
 	const TSharedRef<FJsonObject> Custom = Options.UserProperties.ToJson();
-	for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Custom->Values)
+	for (const auto& Pair : Custom->Values)
 	{
-		if (Pair.Key.IsEmpty() || Pair.Key.Len() > MaxPropertyNameLength)
+		const FString Key = Gamebeast::Json::KeyToString(Pair.Key);
+		if (Key.IsEmpty() || Key.Len() > MaxPropertyNameLength)
 		{
-			GB_WARN(TEXT("User property '%s' skipped: names must be 1-%d characters."), *Pair.Key, MaxPropertyNameLength);
+			GB_WARN(TEXT("User property '%s' skipped: names must be 1-%d characters."), *Key, MaxPropertyNameLength);
 			continue;
 		}
 		if (!IsValidContextValue(Pair.Value))
 		{
 			GB_WARN(TEXT("User property '%s' skipped: targeting values must be strings, numbers, booleans, or arrays of one of those."),
-				*Pair.Key);
+				*Key);
 			continue;
 		}
 		if (Properties->Values.Num() >= MaxContextProperties)
 		{
-			GB_WARN(TEXT("User property '%s' skipped: at most %d properties are sent."), *Pair.Key, MaxContextProperties);
+			GB_WARN(TEXT("User property '%s' skipped: at most %d properties are sent."), *Key, MaxContextProperties);
 			continue;
 		}
-		Properties->SetField(Pair.Key, Pair.Value);
+		Properties->SetField(Key, Pair.Value);
 	}
 	return Properties;
 }
